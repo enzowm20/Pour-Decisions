@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+
+  --font-display: "Acumin Variable Concept Semi Condensed", "Acumin Pro SemiCondensed",
+    "Acumin Pro", system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* Fallback palette (Aperol) so anything outside the themed wrapper — like
+     <body> itself — still has sane values; .theme-* below override per page. */
+  --bg: #0f2240;
+  --surface: #1b3a6b;
+  --surface-raised: color-mix(in srgb, #1b3a6b 80%, white 12%);
+
+  --primary: #e8531b;
+  --primary-hover: #ffb400;
+  --on-primary: #fbf3e4;
+
+  --gold: #ffc727;
+  --berry: color-mix(in srgb, #e8531b 70%, black 20%);
+  --teal: #2c6baf;
+  --sage: #2e6b4f;
+
+  --cream: #fbf3e4;
+  --cream-dim: color-mix(in srgb, #fbf3e4 65%, #1b3a6b 35%);
+
+  --on-gold: #0f2240;
+  --on-berry: #fbf3e4;
+  --on-teal: #fbf3e4;
+  --on-sage: #fbf3e4;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-display);
+  background: var(--bg);
+  color: var(--cream);
+}
+
+/* Venue Scans — Chambord: deep black-raspberry liquid, plum surfaces, gold crown accent. */
+.theme-chambord {
+  --bg: #1a0816;
+  --surface: #341029;
+  --surface-raised: color-mix(in srgb, #341029 80%, white 12%);
+
+  --primary: #c9a227;
+  --primary-hover: #e0bc4a;
+  --on-primary: #1a0816;
+
+  --gold: #c9a227;
+  --berry: #8c1f4f;
+  --teal: #7c5aa6;
+  --sage: #5c7a52;
+
+  --cream: #f3e6e9;
+  --cream-dim: color-mix(in srgb, #f3e6e9 65%, #341029 35%);
+
+  --on-gold: #1a0816;
+  --on-berry: #f3e6e9;
+  --on-teal: #f3e6e9;
+  --on-sage: #f3e6e9;
+}
+
+/* Experiment Lab — Bombay Sapphire: vivid blue liquid, navy surfaces, icy highlights. */
+.theme-bombay {
+  --bg: #07182b;
+  --surface: #123a5e;
+  --surface-raised: color-mix(in srgb, #123a5e 80%, white 12%);
+
+  --primary: #1e6fbe;
+  --primary-hover: #3c8ad9;
+  --on-primary: #eaf3fa;
+
+  --gold: #f0b92e;
+  --berry: #b0303a;
+  --teal: #5fa8d8;
+  --sage: #4e8c6e;
+
+  --cream: #eaf3fa;
+  --cream-dim: color-mix(in srgb, #eaf3fa 65%, #123a5e 35%);
+
+  --on-gold: #07182b;
+  --on-berry: #eaf3fa;
+  --on-teal: #07182b;
+  --on-sage: #eaf3fa;
+}
+
+/* Archive — Jagermeister: deep brown-black liquid, mahogany surfaces, orange-red label accent. */
+.theme-jager {
+  --bg: #140a06;
+  --surface: #2b160c;
+  --surface-raised: color-mix(in srgb, #2b160c 80%, white 12%);
+
+  --primary: #e8631a;
+  --primary-hover: #ff8a3d;
+  --on-primary: #f2e6d8;
+
+  --gold: #b8860b;
+  --berry: #8c1a1a;
+  --teal: #3fa34d;
+  --sage: #4caf50;
+
+  --cream: #f2e6d8;
+  --cream-dim: color-mix(in srgb, #f2e6d8 65%, #2b160c 35%);
+
+  --on-gold: #140a06;
+  --on-berry: #f2e6d8;
+  --on-teal: #f2e6d8;
+  --on-sage: #f2e6d8;
+}

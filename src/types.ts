@@ -1,0 +1,139 @@
+export type IngredientCategory = "spirit" | "mixer" | "citrus" | "sweetener" | "other"
+
+export const CATEGORY_LABELS: Record<IngredientCategory, string> = {
+  spirit: "Spirit",
+  mixer: "Mixer",
+  citrus: "Citrus",
+  sweetener: "Sweetener",
+  other: "Top-up",
+}
+
+export const FLAVOR_TAGS = [
+  "bitter",
+  "boozy",
+  "citrusy",
+  "creamy",
+  "dry",
+  "earthy",
+  "floral",
+  "fruity",
+  "herbal",
+  "nutty",
+  "refreshing",
+  "savory",
+  "smoky",
+  "sour",
+  "spicy",
+  "sweet",
+  "tangy",
+] as const
+
+export type FlavorTag = (typeof FLAVOR_TAGS)[number]
+
+// Which cocktail "family" an ingredient belongs to — separate from flavor.
+// Two ingredients can both be "sweet" without ever appearing in the same
+// drink (Kahlua and limoncello, say); style is what keeps combinations
+// realistic, since the combo generator only pairs ingredients that share
+// at least one style with the chosen spirit.
+export const STYLE_TAGS = [
+  "citrus-forward",
+  "classic-spirit-forward",
+  "creamy-dessert",
+  "fizz-effervescent",
+  "herbal-bitter",
+  "martini-stirred",
+  "refreshing-highball",
+  "tropical-tiki",
+] as const
+
+export type StyleTag = (typeof STYLE_TAGS)[number]
+
+export const STYLE_LABELS: Record<StyleTag, string> = {
+  "citrus-forward": "Citrus-forward",
+  "classic-spirit-forward": "Classic spirit-forward",
+  "creamy-dessert": "Creamy / dessert",
+  "fizz-effervescent": "Fizz / effervescent",
+  "herbal-bitter": "Herbal / bitter",
+  "martini-stirred": "Martini / stirred",
+  "refreshing-highball": "Refreshing highball",
+  "tropical-tiki": "Tropical / tiki",
+}
+
+export interface Ingredient {
+  id: string
+  name: string
+  category: IngredientCategory
+  tags: FlavorTag[]
+  styles: StyleTag[]
+  inStock: boolean
+}
+
+export interface Substitution {
+  id: string
+  ingredientName: string
+  substituteName: string
+  note?: string
+}
+
+export interface Venue {
+  id: string
+  name: string
+}
+
+export interface Scan {
+  id: string
+  venueId: string
+  date: string
+  photos: string[]
+}
+
+export interface Recipe {
+  id: string
+  name: string
+  venueId: string | null // null = own venue's menu
+  scanId: string | null // null if own venue recipe
+  ingredientIds: string[]
+}
+
+export type ExperimentOutcome = "worked" | "needs-work" | "failed"
+
+export const GLASS_TYPES = [
+  "lowball",
+  "highball",
+  "fluted tall glass",
+  "fluted short glass",
+  "coupe",
+  "mason jar",
+  "carafe",
+] as const
+
+export type GlassType = (typeof GLASS_TYPES)[number]
+
+export interface Experiment {
+  id: string
+  name: string
+  sourceRecipeId?: string
+  tags: FlavorTag[]
+  ingredientIds: string[]
+  outcome: ExperimentOutcome
+  glass?: GlassType
+  garnish: string
+  notes: string
+  photos: string[]
+  date: string
+  promotedToMenu: boolean
+}
+
+export type RecipeStatus = "makeable" | "substitute" | "purchase"
+
+export interface RecipeIngredientStatus {
+  ingredient: Ingredient
+  status: "have" | "substitute" | "missing"
+  substitute?: Ingredient
+}
+
+export interface RecipeCheckResult {
+  status: RecipeStatus
+  items: RecipeIngredientStatus[]
+  toPurchase: Ingredient[]
+}
