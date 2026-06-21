@@ -28,6 +28,7 @@ export default function StockPage() {
   const [category, setCategory] = useState<IngredientCategory>("spirit")
   const [tags, setTags] = useState<FlavorTag[]>([])
   const [styles, setStyles] = useState<StyleTag[]>([])
+  const [costPerServing, setCostPerServing] = useState("")
 
   const [viewCategory, setViewCategory] = useState<IngredientCategory | "all">("all")
   const [editingStylesId, setEditingStylesId] = useState<string | null>(null)
@@ -54,10 +55,19 @@ export default function StockPage() {
   function handleAddIngredient(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    addIngredient({ name: name.trim(), category, tags, styles, inStock: true })
+    const cost = parseFloat(costPerServing)
+    addIngredient({
+      name: name.trim(),
+      category,
+      tags,
+      styles,
+      inStock: true,
+      costPerServing: Number.isFinite(cost) && cost > 0 ? cost : undefined,
+    })
     setName("")
     setTags([])
     setStyles([])
+    setCostPerServing("")
   }
 
   function handleAddSubstitution(e: React.FormEvent) {
@@ -117,6 +127,15 @@ export default function StockPage() {
               </option>
             ))}
           </select>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className={`${inputClass} w-28`}
+            placeholder="Cost / serving"
+            value={costPerServing}
+            onChange={(e) => setCostPerServing(e.target.value)}
+          />
           <button type="submit" className={buttonClass}>
             Add ingredient
           </button>
@@ -199,6 +218,23 @@ export default function StockPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-[var(--cream-dim)]">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="h-7 w-16 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
+                        placeholder="0.00"
+                        defaultValue={ing.costPerServing ?? ""}
+                        onBlur={(e) => {
+                          const cost = parseFloat(e.target.value)
+                          updateIngredient(ing.id, {
+                            costPerServing: Number.isFinite(cost) && cost > 0 ? cost : undefined,
+                          })
+                        }}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => setEditingStylesId(isEditingStyles ? null : ing.id)}

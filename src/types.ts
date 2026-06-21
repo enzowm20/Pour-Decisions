@@ -66,6 +66,7 @@ export interface Ingredient {
   tags: FlavorTag[]
   styles: StyleTag[]
   inStock: boolean
+  costPerServing?: number
 }
 
 export interface Substitution {
@@ -87,12 +88,16 @@ export interface Scan {
   photos: string[]
 }
 
+export type MenuCategory = "core" | "seasonal"
+
 export interface Recipe {
   id: string
   name: string
   venueId: string | null // null = own venue's menu
   scanId: string | null // null if own venue recipe
   ingredientIds: string[]
+  menuCategory?: MenuCategory // only meaningful when venueId is null; defaults to "core"
+  sellPrice?: number
 }
 
 export type ExperimentOutcome = "worked" | "needs-work" | "failed"

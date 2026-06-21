@@ -109,7 +109,7 @@ body {
   --on-sage: #f2e6d8;
 }
 
-/* My Menu — Gordon's Pink Gin: vivid pink liquid, dusty-rose surfaces, botanical-green secondary. */
+/* My Menu — Gordon's Pink Gin: vivid pink liquid, dusty-rose surfaces, all-pink accent family (no green). */
 .theme-gordons {
   --bg: #3d0f24;
   --surface: #5c1f3a;
@@ -121,8 +121,8 @@ body {
 
   --gold: #c9a227;
   --berry: #8c1f3a;
-  --teal: #3f8c5c;
-  --sage: #4caf50;
+  --teal: #c9607e;
+  --sage: #f2a6bd;
 
   --cream: #fff1f5;
   --cream-dim: color-mix(in srgb, #fff1f5 65%, #5c1f3a 35%);
