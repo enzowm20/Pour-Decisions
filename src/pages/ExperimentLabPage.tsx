@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
-import { buildPairingGraph, isLearnedPair } from "../lib/learnedPairings"
+import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
 const CAPS: Record<IngredientCategory, number> = {
@@ -45,6 +45,7 @@ export default function ExperimentLabPage() {
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
 
   const pairingGraph = useMemo(() => buildPairingGraph(experiments), [experiments])
+  const provenGroups = useMemo(() => buildProvenGroups(experiments), [experiments])
 
   function toggleTag(tag: FlavorTag) {
     setSelectedTags((prev) =>
@@ -86,37 +87,32 @@ export default function ExperimentLabPage() {
       const offset = attempt
 
       const bySlot: Combo["bySlot"] = {}
-      const learnedIds = new Set<string>()
 
       const additionalSpirits = spiritCandidates.filter(
         (i) => i.id !== anchor.id && compatible(anchor, i),
       )
       const spiritCount = Math.min(CAPS.spirit - 1, additionalSpirits.length)
-      const pickedSpirits = pickN(additionalSpirits, spiritCount, offset)
-      bySlot.spirit = [anchor, ...pickedSpirits]
-      for (const i of pickedSpirits) {
-        if (isLearnedPair(pairingGraph, anchor.id, i.id)) learnedIds.add(i.id)
-      }
+      bySlot.spirit = [anchor, ...pickN(additionalSpirits, spiritCount, offset)]
 
       for (const category of ["mixer", "citrus", "sweetener", "other"] as const) {
         const pool = otherCategoryPools[category].filter((i) => compatible(anchor, i))
         if (pool.length === 0) continue // no qualifying match — skip the slot entirely
         const count = Math.min(CAPS[category], pool.length)
-        const picked = pickN(pool, count, offset)
-        bySlot[category] = picked
-        for (const i of picked) {
-          if (isLearnedPair(pairingGraph, anchor.id, i.id)) learnedIds.add(i.id)
-        }
+        bySlot[category] = pickN(pool, count, offset)
       }
 
-      const signature = Object.values(bySlot)
+      const allIds = Object.values(bySlot)
         .flat()
         .map((i) => i.id)
-        .sort()
-        .join(",")
+      const signature = [...allIds].sort().join(",")
       if (seenSignatures.has(signature)) continue
-
       seenSignatures.add(signature)
+
+      // Badge a whole proven group (2, 3, or more ingredients) rather than
+      // tagging ingredients one at a time against the anchor — this is what
+      // tells a real 3+ ingredient win apart from three separate pairs.
+      const learnedIds = provenMembersWithin(provenGroups, new Set(allIds))
+
       result.push({ bySlot, learnedIds })
     }
 
