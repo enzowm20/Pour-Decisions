@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
+import { buildPairingGraph, isLearnedPair } from "../lib/learnedPairings"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
 const CAPS: Record<IngredientCategory, number> = {
@@ -25,6 +26,7 @@ const DISPLAY_ORDER: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweet
 
 interface Combo {
   bySlot: Partial<Record<IngredientCategory, Ingredient[]>>
+  learnedIds: Set<string>
 }
 
 function hasOverlap(a: string[], b: string[]) {
@@ -38,9 +40,11 @@ function pickN<T>(list: T[], n: number, offset: number): T[] {
 }
 
 export default function ExperimentLabPage() {
-  const { ingredients } = useData()
+  const { ingredients, experiments } = useData()
   const navigate = useNavigate()
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
+
+  const pairingGraph = useMemo(() => buildPairingGraph(experiments), [experiments])
 
   function toggleTag(tag: FlavorTag) {
     setSelectedTags((prev) =>
@@ -65,6 +69,13 @@ export default function ExperimentLabPage() {
       other: byName(ingredients.filter((i) => i.category === "other" && flavorMatch(i))),
     }
 
+    // Two ingredients are allowed in the same combo if they share a style tag
+    // OR if they've actually appeared together in a "worked" archive entry —
+    // the learned pairing is what lets the lab improve as you log more.
+    const compatible = (anchor: Ingredient, candidate: Ingredient) =>
+      hasOverlap(anchor.styles ?? [], candidate.styles ?? []) ||
+      isLearnedPair(pairingGraph, anchor.id, candidate.id)
+
     const MAX_COMBOS = 10
     const MAX_ATTEMPTS = 60
     const seenSignatures = new Set<string>()
@@ -72,27 +83,30 @@ export default function ExperimentLabPage() {
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS && result.length < MAX_COMBOS; attempt++) {
       const anchor = spiritCandidates[attempt % spiritCandidates.length]
-      const anchorStyles = anchor.styles ?? []
       const offset = attempt
 
       const bySlot: Combo["bySlot"] = {}
+      const learnedIds = new Set<string>()
 
-      // Other spirits only join the anchor if they actually share a style
-      // with it (e.g. vodka + Chambord for a French Martini) — never just
-      // because both happen to be "sweet" or "boozy".
       const additionalSpirits = spiritCandidates.filter(
-        (i) => i.id !== anchor.id && hasOverlap(anchorStyles, i.styles ?? []),
+        (i) => i.id !== anchor.id && compatible(anchor, i),
       )
       const spiritCount = Math.min(CAPS.spirit - 1, additionalSpirits.length)
-      bySlot.spirit = [anchor, ...pickN(additionalSpirits, spiritCount, offset)]
+      const pickedSpirits = pickN(additionalSpirits, spiritCount, offset)
+      bySlot.spirit = [anchor, ...pickedSpirits]
+      for (const i of pickedSpirits) {
+        if (isLearnedPair(pairingGraph, anchor.id, i.id)) learnedIds.add(i.id)
+      }
 
       for (const category of ["mixer", "citrus", "sweetener", "other"] as const) {
-        const pool = otherCategoryPools[category].filter((i) =>
-          hasOverlap(anchorStyles, i.styles ?? []),
-        )
+        const pool = otherCategoryPools[category].filter((i) => compatible(anchor, i))
         if (pool.length === 0) continue // no qualifying match — skip the slot entirely
         const count = Math.min(CAPS[category], pool.length)
-        bySlot[category] = pickN(pool, count, offset)
+        const picked = pickN(pool, count, offset)
+        bySlot[category] = picked
+        for (const i of picked) {
+          if (isLearnedPair(pairingGraph, anchor.id, i.id)) learnedIds.add(i.id)
+        }
       }
 
       const signature = Object.values(bySlot)
@@ -103,11 +117,11 @@ export default function ExperimentLabPage() {
       if (seenSignatures.has(signature)) continue
 
       seenSignatures.add(signature)
-      result.push({ bySlot })
+      result.push({ bySlot, learnedIds })
     }
 
     return result
-  }, [ingredients, selectedTags])
+  }, [ingredients, selectedTags, pairingGraph])
 
   function tryCombo(combo: Combo) {
     const ingredientIds = Object.values(combo.bySlot)
@@ -125,10 +139,11 @@ export default function ExperimentLabPage() {
     <div>
       <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
       <p className="mb-4 text-sm text-[var(--cream-dim)]">
-        Select flavor tags to get combinations from your stocked ingredients. Ingredients only
-        combine if they share a flavor tag and a cocktail style with each other — set both on the
-        Stock page for this to suggest things that actually make sense. Categories with no
-        qualifying match are left out rather than forced.
+        Select flavor tags to get combinations from your stocked ingredients. Ingredients combine
+        if they share a flavor tag and either a cocktail style or a pairing you've already logged
+        as "worked" in the archive — so the more you log, the smarter this gets, even before
+        everything is style-tagged. Categories with no qualifying match are left out rather than
+        forced.
       </p>
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -163,7 +178,14 @@ export default function ExperimentLabPage() {
                     <p className="text-[11px] text-[var(--cream-dim)]">{LABELS[category]}</p>
                     <ul className="text-sm">
                       {(combo.bySlot[category] ?? []).map((ing) => (
-                        <li key={ing.id}>{ing.name}</li>
+                        <li key={ing.id}>
+                          {ing.name}
+                          {combo.learnedIds.has(ing.id) && (
+                            <span className="ml-1.5 rounded-full bg-[var(--sage)]/20 px-1.5 py-0.5 text-[10px] text-[var(--sage)]">
+                              proven
+                            </span>
+                          )}
+                        </li>
                       ))}
                     </ul>
                   </div>
