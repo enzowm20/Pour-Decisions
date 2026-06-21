@@ -6,12 +6,14 @@ import logoAperol from "../assets/logo-aperol.png"
 import logoChambord from "../assets/logo-chambord.png"
 import logoBombay from "../assets/logo-bombay.png"
 import logoJager from "../assets/logo-jager.png"
+import logoGordons from "../assets/logo-gordons.png"
 
 const navItems = [
   { to: "/", label: "Stock" },
   { to: "/venues", label: "Venue Scans" },
   { to: "/lab", label: "Experiment Lab" },
   { to: "/archive", label: "Archive" },
+  { to: "/menu", label: "My Menu" },
 ]
 
 const LOGOS: Record<ThemeName, string> = {
@@ -19,6 +21,7 @@ const LOGOS: Record<ThemeName, string> = {
   chambord: logoChambord,
   bombay: logoBombay,
   jager: logoJager,
+  gordons: logoGordons,
 }
 
 export default function Layout() {

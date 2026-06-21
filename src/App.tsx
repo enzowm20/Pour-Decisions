@@ -6,6 +6,7 @@ import VenuesPage from "./pages/VenuesPage"
 import VenueDetailPage from "./pages/VenueDetailPage"
 import ExperimentLabPage from "./pages/ExperimentLabPage"
 import ArchivePage from "./pages/ArchivePage"
+import MyMenuPage from "./pages/MyMenuPage"
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/venues/:venueId" element={<VenueDetailPage />} />
             <Route path="/lab" element={<ExperimentLabPage />} />
             <Route path="/archive" element={<ArchivePage />} />
+            <Route path="/menu" element={<MyMenuPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
