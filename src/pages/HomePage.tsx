@@ -3,31 +3,49 @@ import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
 import limoncelloBottle from "../assets/limoncello-bottle.webp"
 import FallingBottles from "../components/FallingBottles"
 
-const TABS = [
+const SECTIONS = [
   {
-    to: "/stock",
-    name: "Stock",
-    blurb: "Your bar's actual inventory — every spirit, mixer, citrus, sweetener, and top-up, tagged by flavor and cocktail style so the rest of the app knows what you can really make.",
+    label: "Administration",
+    description: "Keep the bar's actual inventory and competitor research up to date.",
+    items: [
+      {
+        to: "/stock",
+        name: "Stock",
+        blurb: "Every spirit, mixer, citrus, sweetener, and top-up you carry, tagged by flavor and cocktail style.",
+      },
+      {
+        to: "/venues",
+        name: "Venue Scans",
+        blurb: "Log other venues' menus and see each drink's makeable / swap / purchase status against your stock.",
+      },
+    ],
   },
   {
-    to: "/venues",
-    name: "Venue Scans",
-    blurb: "Log other venues' menus — by hand or imported — and see each drink's makeable / swap / purchase status against your own stock, with a shopping list for whatever's missing.",
+    label: "Experimentation",
+    description: "Where new cocktail ideas get built and the record of what's been tried lives.",
+    items: [
+      {
+        to: "/lab",
+        name: "Experiment Lab",
+        blurb: "Pick flavor tags and get new combinations built from what's actually in stock — never something already on file.",
+      },
+      {
+        to: "/archive",
+        name: "Archive",
+        blurb: "Outcome, glass, garnish, photos — everything you've tried. The lab learns from what's marked worked here.",
+      },
+    ],
   },
   {
-    to: "/lab",
-    name: "Experiment Lab",
-    blurb: "Pick flavor tags and get new combinations built from what's actually in stock — never something you've already logged or already have on a menu.",
-  },
-  {
-    to: "/archive",
-    name: "Archive",
-    blurb: "The record of everything you've tried: outcome, glass, garnish, photos. The lab learns from what you mark as worked here.",
-  },
-  {
-    to: "/menu",
-    name: "My Menu",
-    blurb: "Cocktails you've promoted from the Archive, split into core and seasonal, with cost and margin tracked per drink.",
+    label: "Menu",
+    description: "The customer-facing list, managed by you and your staff.",
+    items: [
+      {
+        to: "/menu",
+        name: "My Menu",
+        blurb: "Cocktails promoted from the Archive, split into core and seasonal, with cost and margin tracked per drink.",
+      },
+    ],
   },
 ]
 
@@ -48,22 +66,45 @@ export default function HomePage() {
         <h1 className="mb-2 text-lg font-medium">Match. Mix. Sip.</h1>
         <p className="mx-auto max-w-xl text-sm text-[var(--cream-dim)]">
           A bartender's working system for stock, competitor menus, new cocktail ideas, and the
-          archive of everything you've actually tried — five tabs, one running picture of what
-          your bar can pour right now.
+          archive of everything you've actually tried — staff only below.
         </p>
       </div>
 
-      <div className="grid gap-4 text-left sm:grid-cols-2">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.to}
-            to={tab.to}
-            className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4 transition hover:border-[var(--primary)]/60"
-          >
-            <p className="mb-1 text-sm font-medium text-[var(--primary)]">{tab.name}</p>
-            <p className="text-sm text-[var(--cream-dim)]">{tab.blurb}</p>
-          </Link>
+      <div className="space-y-8 text-left">
+        {SECTIONS.map((section) => (
+          <div key={section.label}>
+            <p className="mb-1 text-sm font-medium text-[var(--primary)]">{section.label}</p>
+            <p className="mb-3 text-xs text-[var(--cream-dim)]">{section.description}</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {section.items.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4 transition hover:border-[var(--primary)]/60"
+                >
+                  <p className="mb-1 text-sm font-medium">{item.name}</p>
+                  <p className="text-sm text-[var(--cream-dim)]">{item.blurb}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
+      </div>
+
+      <div className="border-t border-[var(--cream-dim)]/15 pt-6 text-left">
+        <p className="mb-1 text-sm font-medium text-[var(--primary)]">Public Menu</p>
+        <p className="mb-3 text-xs text-[var(--cream-dim)]">
+          A view-only menu with no staff controls or sign-in — share this link with guests, not
+          the staff links above.
+        </p>
+        <a
+          href="/public-menu"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] px-4 py-2 text-sm hover:border-[var(--primary)]/60"
+        >
+          Open /public-menu ↗
+        </a>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { useLayoutEffect } from "react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
 import DrainingBackground from "./DrainingBackground"
 import { themeForPath, type ThemeName } from "../lib/theme"
+import { staffLogout } from "../lib/auth"
 import logoAperol from "../assets/logo-aperol.png"
 import logoChambord from "../assets/logo-chambord.png"
 import logoBombay from "../assets/logo-bombay.png"
@@ -9,12 +10,25 @@ import logoJager from "../assets/logo-jager.png"
 import logoGordons from "../assets/logo-gordons.png"
 import logoLimoncello from "../assets/logo-limoncello.png"
 
-const navItems = [
-  { to: "/stock", label: "Stock" },
-  { to: "/venues", label: "Venue Scans" },
-  { to: "/lab", label: "Experiment Lab" },
-  { to: "/archive", label: "Archive" },
-  { to: "/menu", label: "My Menu" },
+const navGroups = [
+  {
+    label: "Administration",
+    items: [
+      { to: "/stock", label: "Stock" },
+      { to: "/venues", label: "Venue Scans" },
+    ],
+  },
+  {
+    label: "Experimentation",
+    items: [
+      { to: "/lab", label: "Experiment Lab" },
+      { to: "/archive", label: "Archive" },
+    ],
+  },
+  {
+    label: "Menu",
+    items: [{ to: "/menu", label: "My Menu" }],
+  },
 ]
 
 const LOGOS: Record<ThemeName, string> = {
@@ -37,15 +51,21 @@ export default function Layout() {
     window.scrollTo(0, 0)
   }, [location.pathname])
 
+  function handleLogout() {
+    staffLogout()
+    window.location.href = "/"
+  }
+
   return (
     <div className={`theme-${theme} min-h-screen text-[var(--cream)]`}>
       <DrainingBackground />
 
       {/* Home has its own oversized logo, so skip the header here to avoid
-          showing it twice. Every other page gets logo-left, tabs-right. */}
+          showing it twice. Every other page gets logo-left, grouped tabs and
+          sign-out on the right. */}
       {!isHome && (
         <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--cream)]">
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-3">
             <Link to="/">
               <img
                 src={LOGOS[theme]}
@@ -54,25 +74,42 @@ export default function Layout() {
               />
             </Link>
 
-            <nav className="flex flex-wrap justify-end gap-1">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `rounded-md px-3 py-1.5 text-sm ${
-                      isActive
-                        ? theme === "bombay"
-                          ? "bg-[var(--gold)] text-[var(--on-gold)]"
-                          : "bg-[var(--primary)] text-[var(--on-primary)]"
-                        : "text-[var(--surface)] hover:bg-[var(--cream-dim)]/30"
-                    }`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
+            <div className="flex flex-wrap items-center gap-4">
+              <nav className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                {navGroups.map((group) => (
+                  <div key={group.label} className="flex flex-wrap items-center gap-1">
+                    <span className="text-[10px] uppercase tracking-wide text-[var(--surface)]/60">
+                      {group.label}
+                    </span>
+                    {group.items.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={({ isActive }) =>
+                          `rounded-md px-2.5 py-1.5 text-sm ${
+                            isActive
+                              ? theme === "bombay"
+                                ? "bg-[var(--gold)] text-[var(--on-gold)]"
+                                : "bg-[var(--primary)] text-[var(--on-primary)]"
+                              : "text-[var(--surface)] hover:bg-[var(--cream-dim)]/30"
+                          }`
+                        }
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                ))}
+              </nav>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-xs text-[var(--surface)]/70 hover:underline"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </header>
       )}
