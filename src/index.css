@@ -133,26 +133,28 @@ body {
   --on-sage: #3d0f24;
 }
 
-/* Home — Ambra Limoncello: yellow liquid, near-black surfaces, pink/teal/gold accents. */
+/* Home — blended from five flavour bottles: vanilla, wildberry, lime,
+   passionfruit, raspberry. Plum-black surfaces with a multi-colour accent
+   set sampled directly from each bottle's core liquid colour. */
 .theme-limoncello {
-  --bg: #0d0d0d;
-  --surface: color-mix(in srgb, #0d0d0d 88%, white 8%);
-  --surface-raised: color-mix(in srgb, #0d0d0d 78%, white 14%);
+  --bg: #160c1a;
+  --surface: color-mix(in srgb, #160c1a 85%, white 8%);
+  --surface-raised: color-mix(in srgb, #160c1a 75%, white 14%);
 
-  --primary: #f2dd72;
-  --primary-hover: #d9b959;
-  --on-primary: #0d0d0d;
+  --primary: #f0a830;
+  --primary-hover: #f7c066;
+  --on-primary: #1a0f1e;
 
-  --gold: #d9b959;
-  --berry: #f28095;
-  --teal: #59d9cc;
-  --sage: color-mix(in srgb, #59d9cc 50%, #f2dd72 50%);
+  --gold: #d8cca8;
+  --berry: #a80048;
+  --teal: #5fa61e;
+  --sage: #6b3a9e;
 
-  --cream: color-mix(in srgb, #f2dd72 18%, white 82%);
-  --cream-dim: color-mix(in srgb, #f2dd72 55%, #0d0d0d 25%);
+  --cream: #f5eedc;
+  --cream-dim: color-mix(in srgb, #f5eedc 55%, #160c1a 30%);
 
-  --on-gold: #0d0d0d;
-  --on-berry: #0d0d0d;
-  --on-teal: #0d0d0d;
-  --on-sage: #0d0d0d;
+  --on-gold: #1a0f1e;
+  --on-berry: #f5eedc;
+  --on-teal: #1a0f1e;
+  --on-sage: #f5eedc;
 }

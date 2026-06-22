@@ -30,13 +30,14 @@ const ASPECT = 1280 / 1024 // source image height / width
 const SIZE_MULTIPLIER = 2.5
 
 interface Props {
-  bottleImg: string
+  bottleImg: string | string[]
 }
 
 export default function FallingBottles({ bottleImg }: Props) {
   const location = useLocation()
   const { scrollY } = useScrollProgress(location.pathname)
   const reducedMotion = usePrefersReducedMotion()
+  const images = Array.isArray(bottleImg) ? bottleImg : [bottleImg]
 
   // Visible for the whole page, top to bottom — no fade in/out tied to scroll.
   if (reducedMotion) return null
@@ -68,7 +69,7 @@ export default function FallingBottles({ bottleImg }: Props) {
         return (
           <img
             key={i}
-            src={bottleImg}
+            src={images[i % images.length]}
             alt=""
             width={size}
             height={height}
