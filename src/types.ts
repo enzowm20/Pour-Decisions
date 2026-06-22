@@ -96,6 +96,10 @@ export interface Recipe {
   venueId: string | null // null = own venue's menu
   scanId: string | null // null if own venue recipe
   ingredientIds: string[]
+  // Ingredient names found in a scanned/imported recipe that don't match
+  // anything in stock — recorded by name instead of silently creating a new
+  // Ingredient, so they show up as flagged substitution candidates instead.
+  missingIngredientNames?: string[]
   menuCategory?: MenuCategory // only meaningful when venueId is null; defaults to "core"
   sellPrice?: number
 }

@@ -4,9 +4,15 @@ import { useData } from "../context/DataContext"
 import { checkRecipe } from "../lib/recipeCheck"
 import { fileToDataUrl } from "../lib/storage"
 import { byName } from "../lib/sort"
-import { SEED_EXPERIMENTS, SEED_INGREDIENTS } from "../lib/fiddlerImport"
+import { extractTextFromFile } from "../lib/textExtraction"
+import { parseMenuText, type ParsedRecipe } from "../lib/menuParser"
 import IngredientPicker from "../components/IngredientPicker"
 import StatusBadge from "../components/StatusBadge"
+
+interface ReviewRecipe extends ParsedRecipe {
+  include: boolean
+  ingredientText: string // editable comma-separated text backing ingredientNames
+}
 
 export default function VenueDetailPage() {
   const { venueId: routeVenueId } = useParams()
@@ -20,7 +26,6 @@ export default function VenueDetailPage() {
     addRecipe,
     removeRecipe,
     ingredients,
-    addIngredient,
     substitutions,
   } = useData()
 
@@ -32,7 +37,12 @@ export default function VenueDetailPage() {
 
   const [recipeName, setRecipeName] = useState("")
   const [recipeIngredientIds, setRecipeIngredientIds] = useState<string[]>([])
-  const [importStatus, setImportStatus] = useState("")
+
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [parseError, setParseError] = useState("")
+  const [reviewRecipes, setReviewRecipes] = useState<ReviewRecipe[] | null>(null)
+  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState("")
 
   if (!venue) {
     return <p className="text-sm text-[var(--cream-dim)]">Venue not found.</p>
@@ -74,42 +84,78 @@ export default function VenueDetailPage() {
     navigate(`/lab?${params.toString()}`)
   }
 
-  const handleImportMenu = () => {
-    const scan = addScan({ venueId, date: new Date().toISOString().slice(0, 10), photos: [] })
+  const handleMenuFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
 
-    const nameToId = new Map(ingredients.map((i) => [i.name.toLowerCase(), i.id]))
-    let newIngredients = 0
-    for (const seed of SEED_INGREDIENTS) {
-      const key = seed.name.toLowerCase()
-      if (nameToId.has(key)) continue
-      const created = addIngredient({
-        name: seed.name,
-        category: seed.category,
-        tags: seed.tags,
-        styles: seed.styles,
-        inStock: true,
+    setIsProcessing(true)
+    setParseError("")
+    setReviewRecipes(null)
+    setSaveStatus("")
+
+    try {
+      const [text, photoDataUrl] = await Promise.all([
+        extractTextFromFile(file),
+        file.type.startsWith("image/") ? fileToDataUrl(file) : Promise.resolve(null),
+      ])
+      const parsed = parseMenuText(text)
+      setPendingPhoto(photoDataUrl)
+      setReviewRecipes(
+        parsed.map((r) => ({ ...r, include: true, ingredientText: r.ingredientNames.join(", ") })),
+      )
+      if (parsed.length === 0) {
+        setParseError(
+          "Couldn't find anything that looked like a recipe in this file. If it's a scanned PDF with no real text layer, try uploading it as an image instead.",
+        )
+      }
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Couldn't read that file.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  function updateReviewRecipe(index: number, patch: Partial<ReviewRecipe>) {
+    setReviewRecipes((prev) => prev?.map((r, i) => (i === index ? { ...r, ...patch } : r)) ?? null)
+  }
+
+  function handleSaveReviewed() {
+    if (!reviewRecipes) return
+    const included = reviewRecipes.filter((r) => r.include && r.name.trim())
+    if (included.length === 0) return
+
+    const byNameLower = new Map(ingredients.map((i) => [i.name.toLowerCase(), i.id]))
+    const scan = addScan({
+      venueId,
+      date: new Date().toISOString().slice(0, 10),
+      photos: pendingPhoto ? [pendingPhoto] : [],
+    })
+
+    for (const r of included) {
+      const names = r.ingredientText
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean)
+      const ingredientIds: string[] = []
+      const missingIngredientNames: string[] = []
+      for (const n of names) {
+        const id = byNameLower.get(n.toLowerCase())
+        if (id) ingredientIds.push(id)
+        else missingIngredientNames.push(n)
+      }
+      addRecipe({
+        name: r.name.trim(),
+        venueId,
+        scanId: scan.id,
+        ingredientIds,
+        missingIngredientNames: missingIngredientNames.length > 0 ? missingIngredientNames : undefined,
       })
-      nameToId.set(key, created.id)
-      newIngredients++
     }
 
-    const existingRecipeNames = new Set(
-      recipes.filter((r) => r.venueId === venueId).map((r) => r.name.toLowerCase()),
-    )
-    let newRecipes = 0
-    for (const seed of SEED_EXPERIMENTS) {
-      if (existingRecipeNames.has(seed.name.toLowerCase())) continue
-      const ingredientIds = seed.ingredientNames
-        .map((n) => nameToId.get(n.toLowerCase()))
-        .filter((id): id is string => Boolean(id))
-
-      addRecipe({ name: seed.name, venueId, scanId: scan.id, ingredientIds })
-      newRecipes++
-    }
-
-    setImportStatus(
-      `Added ${newRecipes} recipe${newRecipes === 1 ? "" : "s"} and created ${newIngredients} new ingredient${newIngredients === 1 ? "" : "s"}.`,
-    )
+    setSaveStatus(`Saved ${included.length} recipe${included.length === 1 ? "" : "s"} to a new scan.`)
+    setReviewRecipes(null)
+    setPendingPhoto(null)
   }
 
   // Aggregate purchase list across all scans
@@ -142,20 +188,65 @@ export default function VenueDetailPage() {
       )}
 
       <section className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
-        <p className="mb-1 text-sm font-medium">Import Fiddler Cocktail Menu (2027)</p>
+        <p className="mb-1 text-sm font-medium">Import menu from a photo or PDF</p>
         <p className="mb-3 text-xs text-[var(--cream-dim)]">
-          Adds a new scan to {venue.name} containing every recipe from the PDF, creating any
-          missing ingredients (tagged with flavor and style) along the way. Safe to run more than
-          once — matching recipe and ingredient names are skipped.
+          Upload a photo of {venue.name}'s menu, or a PDF, and this reads the text and proposes
+          recipes for you to review below before saving. It runs entirely in your browser — no
+          ingredients are created automatically; anything that doesn't match your stock is saved
+          by name and flagged on the Experiment Lab page for you to substitute. OCR on photos is
+          rough — check the review list before saving.
         </p>
-        <button
-          type="button"
-          onClick={handleImportMenu}
-          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
-        >
-          Import menu
-        </button>
-        {importStatus && <p className="mt-2 text-xs text-[var(--sage)]">{importStatus}</p>}
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={handleMenuFileSelected}
+          disabled={isProcessing}
+          className="text-sm"
+        />
+        {isProcessing && <p className="mt-2 text-xs text-[var(--cream-dim)]">Reading file…</p>}
+        {parseError && <p className="mt-2 text-xs text-[var(--berry)]">{parseError}</p>}
+        {saveStatus && <p className="mt-2 text-xs text-[var(--sage)]">{saveStatus}</p>}
+
+        {reviewRecipes && reviewRecipes.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-[var(--cream-dim)]">
+              Review what was found — edit names/ingredients, untick anything wrong, then save.
+            </p>
+            {reviewRecipes.map((r, i) => (
+              <div
+                key={i}
+                className="flex flex-wrap items-start gap-2 rounded-md border border-[var(--cream-dim)]/15 p-2"
+              >
+                <input
+                  type="checkbox"
+                  checked={r.include}
+                  onChange={(e) => updateReviewRecipe(i, { include: e.target.checked })}
+                  className="mt-2"
+                />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <input
+                    className="h-8 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-sm text-[var(--cream)]"
+                    value={r.name}
+                    onChange={(e) => updateReviewRecipe(i, { name: e.target.value })}
+                  />
+                  <input
+                    className="h-8 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-xs text-[var(--cream)]"
+                    value={r.ingredientText}
+                    onChange={(e) => updateReviewRecipe(i, { ingredientText: e.target.value })}
+                    placeholder="Comma-separated ingredients"
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleSaveReviewed}
+              className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+            >
+              Save reviewed recipes
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
@@ -227,6 +318,7 @@ export default function VenueDetailPage() {
               <div className="space-y-2">
                 {scanRecipes.map((recipe) => {
                   const result = checkRecipe(recipe, ingredients, substitutions)
+                  const missingNames = recipe.missingIngredientNames ?? []
                   return (
                     <div key={recipe.id} className="rounded-md border border-[var(--cream-dim)]/15 p-3">
                       <div className="mb-1 flex items-start justify-between gap-2">
@@ -249,9 +341,17 @@ export default function VenueDetailPage() {
                                 )}
                               </span>
                             ))}
+                            {missingNames.length > 0 && (
+                              <>
+                                {result.items.length > 0 ? ", " : ""}
+                                <span className="italic text-[var(--berry)]">
+                                  {missingNames.join(", ")} (not in stock)
+                                </span>
+                              </>
+                            )}
                           </p>
                         </div>
-                        <StatusBadge status={result.status} />
+                        <StatusBadge status={missingNames.length > 0 ? "purchase" : result.status} />
                       </div>
                       {result.items.some((i) => i.status === "substitute") && (
                         <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
@@ -268,6 +368,12 @@ export default function VenueDetailPage() {
                         <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
                           No substitute on file — buy{" "}
                           {result.toPurchase.map((i) => i.name).join(", ")} to make this
+                        </p>
+                      )}
+                      {missingNames.length > 0 && (
+                        <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
+                          Not in your stock at all — flagged on the Experiment Lab page:{" "}
+                          {missingNames.join(", ")}
                         </p>
                       )}
                       <div className="mt-2 flex items-center gap-3">

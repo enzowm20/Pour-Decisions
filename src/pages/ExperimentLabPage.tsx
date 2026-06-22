@@ -5,6 +5,7 @@ import { byName } from "../lib/sort"
 import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
 import { checkRecipe } from "../lib/recipeCheck"
 import SubstitutionManager from "../components/SubstitutionManager"
+import FlaggedIngredients from "../components/FlaggedIngredients"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import bombayBottle from "../assets/bombay-bottle.webp"
@@ -306,6 +307,7 @@ export default function ExperimentLabPage() {
       </div>
 
       <div className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+        <FlaggedIngredients />
         <SubstitutionManager />
       </div>
     </div>
