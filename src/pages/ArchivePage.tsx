@@ -5,6 +5,7 @@ import { fileToDataUrl } from "../lib/storage"
 import { byName } from "../lib/sort"
 import IngredientPicker from "../components/IngredientPicker"
 import FallingBottles from "../components/FallingBottles"
+import RevealOnScroll from "../components/RevealOnScroll"
 import jagerBottle from "../assets/jager-bottle.webp"
 import type { ExperimentOutcome, FlavorTag, GlassType } from "../types"
 import { FLAVOR_TAGS, GLASS_TYPES } from "../types"
@@ -84,13 +85,14 @@ export default function ArchivePage() {
   return (
     <div className="relative space-y-6">
       <FallingBottles bottleImg={jagerBottle} />
-      <div>
+      <RevealOnScroll>
         <h1 className="mb-1 text-lg font-medium">Experiment Archive</h1>
         <p className="text-sm text-[var(--cream-dim)]">
           Log what you tried, what worked, and keep it on file for next time.
         </p>
-      </div>
+      </RevealOnScroll>
 
+      <RevealOnScroll delay={100}>
       <form
         onSubmit={handleSubmit}
         className="space-y-3 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
@@ -198,14 +200,19 @@ export default function ArchivePage() {
           Save experiment
         </button>
       </form>
+      </RevealOnScroll>
 
       <div className="space-y-3">
         {experiments.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">No experiments logged yet.</p>
         )}
         {byName(experiments)
-          .map((exp) => (
-            <div key={exp.id} className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
+          .map((exp, i) => (
+            <RevealOnScroll
+              key={exp.id}
+              delay={Math.min(i, 8) * 60}
+              className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
+            >
               <div className="flex gap-3">
                 {exp.photos[0] ? (
                   <img src={exp.photos[0]} alt="" className="h-14 w-14 flex-shrink-0 rounded-md object-cover" />
@@ -253,7 +260,7 @@ export default function ArchivePage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </RevealOnScroll>
           ))}
       </div>
     </div>

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
 import limoncelloBottle from "../assets/limoncello-bottle.webp"
 import FallingBottles from "../components/FallingBottles"
+import RevealOnScroll from "../components/RevealOnScroll"
 
 const SECTIONS = [
   {
@@ -54,25 +55,25 @@ export default function HomePage() {
     <div className="relative space-y-10 text-center">
       <FallingBottles bottleImg={limoncelloBottle} />
 
-      <div className="flex justify-center pt-2">
+      <RevealOnScroll className="flex justify-center pt-2">
         <img
           src={logoLimoncelloHero}
           alt="Pour Decisions — match, mix, sip"
           className="h-56 w-auto sm:h-80 md:h-96"
         />
-      </div>
+      </RevealOnScroll>
 
-      <div>
+      <RevealOnScroll delay={100}>
         <h1 className="mb-2 text-lg font-medium">Match. Mix. Sip.</h1>
         <p className="mx-auto max-w-xl text-sm text-[var(--cream-dim)]">
           A bartender's working system for stock, competitor menus, new cocktail ideas, and the
           archive of everything you've actually tried — staff only below.
         </p>
-      </div>
+      </RevealOnScroll>
 
       <div className="space-y-8 text-left">
-        {SECTIONS.map((section) => (
-          <div key={section.label}>
+        {SECTIONS.map((section, i) => (
+          <RevealOnScroll key={section.label} delay={i * 80}>
             <p className="mb-1 text-sm font-medium text-[var(--primary)]">{section.label}</p>
             <p className="mb-3 text-xs text-[var(--cream-dim)]">{section.description}</p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -87,11 +88,11 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
-          </div>
+          </RevealOnScroll>
         ))}
       </div>
 
-      <div className="border-t border-[var(--cream-dim)]/15 pt-6 text-left">
+      <RevealOnScroll className="border-t border-[var(--cream-dim)]/15 pt-6 text-left">
         <p className="mb-1 text-sm font-medium text-[var(--primary)]">Public Menu</p>
         <p className="mb-3 text-xs text-[var(--cream-dim)]">
           A view-only menu with no staff controls or sign-in — share this link with guests, not
@@ -105,7 +106,7 @@ export default function HomePage() {
         >
           Open /public-menu ↗
         </a>
-      </div>
+      </RevealOnScroll>
     </div>
   )
 }

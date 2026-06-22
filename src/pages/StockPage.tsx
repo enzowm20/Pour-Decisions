@@ -3,6 +3,7 @@ import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import SubstitutionManager from "../components/SubstitutionManager"
 import FallingBottles from "../components/FallingBottles"
+import RevealOnScroll from "../components/RevealOnScroll"
 import aperolBottle from "../assets/aperol-bottle.webp"
 import {
   CATEGORY_LABELS,
@@ -220,7 +221,7 @@ export default function StockPage() {
   return (
     <div className="relative space-y-8">
       <FallingBottles bottleImg={aperolBottle} />
-      <section>
+      <RevealOnScroll>
         <h1 className="mb-1 text-lg font-medium">Your Stock</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">
           Add every ingredient you carry. Toggle in/out of stock as it runs out. Cost per serving
@@ -336,11 +337,11 @@ export default function StockPage() {
             {visibleIngredients.map(renderIngredientRow)}
           </div>
         )}
-      </section>
+      </RevealOnScroll>
 
-      <section>
+      <RevealOnScroll delay={100}>
         <SubstitutionManager />
-      </section>
+      </RevealOnScroll>
     </div>
   )
 }

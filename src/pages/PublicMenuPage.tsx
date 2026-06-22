@@ -3,6 +3,7 @@ import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import DrainingBackground from "../components/DrainingBackground"
 import FallingBottles from "../components/FallingBottles"
+import RevealOnScroll from "../components/RevealOnScroll"
 import logoGordons from "../assets/logo-gordons.png"
 import gordonsBottle from "../assets/gordons-bottle.webp"
 import type { MenuCategory } from "../types"
@@ -42,7 +43,7 @@ export default function PublicMenuPage() {
       </header>
 
       <main className="relative mx-auto max-w-4xl px-4 py-6">
-        <div className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface)] p-4 sm:p-6">
+        <RevealOnScroll className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface)] p-4 sm:p-6">
           <h1 className="mb-1 text-center text-lg font-medium">Our Menu</h1>
           <p className="mb-6 text-center text-sm text-[var(--cream-dim)]">
             What we're pouring right now.
@@ -71,8 +72,12 @@ export default function PublicMenuPage() {
                 Nothing listed here yet — check back soon.
               </p>
             )}
-            {menuRecipes.map((recipe) => (
-              <div key={recipe.id} className="flex items-start justify-between gap-4 p-4">
+            {menuRecipes.map((recipe, i) => (
+              <RevealOnScroll
+                key={recipe.id}
+                delay={Math.min(i, 8) * 60}
+                className="flex items-start justify-between gap-4 p-4"
+              >
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{recipe.name}</p>
                   <p className="text-xs text-[var(--cream-dim)]">
@@ -92,7 +97,7 @@ export default function PublicMenuPage() {
                 >
                   {orderedId === recipe.id ? "Ordered ✓" : "Order"}
                 </button>
-              </div>
+              </RevealOnScroll>
             ))}
           </div>
 
@@ -102,7 +107,7 @@ export default function PublicMenuPage() {
               its own.
             </p>
           )}
-        </div>
+        </RevealOnScroll>
       </main>
     </div>
   )

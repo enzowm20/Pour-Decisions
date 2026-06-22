@@ -5,6 +5,7 @@ import { checkRecipe } from "../lib/recipeCheck"
 import { margin, marginPercent, recipeCost } from "../lib/cost"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
+import RevealOnScroll from "../components/RevealOnScroll"
 import gordonsBottle from "../assets/gordons-bottle.webp"
 import type { MenuCategory } from "../types"
 
@@ -24,13 +25,13 @@ export default function MyMenuPage() {
   return (
     <div className="relative space-y-4">
       <FallingBottles bottleImg={gordonsBottle} />
-      <div>
+      <RevealOnScroll>
         <h1 className="mb-1 text-lg font-medium">My Cocktails</h1>
         <p className="text-sm text-[var(--cream-dim)]">
           Cocktails you've promoted from the Archive. Tap "Add to my menu" on a successful
           experiment to land it here.
         </p>
-      </div>
+      </RevealOnScroll>
 
       <div className="flex gap-2">
         {TABS.map((t) => (
@@ -55,7 +56,7 @@ export default function MyMenuPage() {
             Nothing in {tab === "core" ? "your core menu" : "seasonal specials"} yet.
           </p>
         )}
-        {menuRecipes.map((recipe) => {
+        {menuRecipes.map((recipe, i) => {
           const result = checkRecipe(recipe, ingredients, substitutions)
           const cost = recipeCost(recipe, ingredients)
           const sellPrice = recipe.sellPrice ?? 0
@@ -64,7 +65,7 @@ export default function MyMenuPage() {
           const otherCategory: MenuCategory = tab === "core" ? "seasonal" : "core"
 
           return (
-            <div key={recipe.id} className="p-4">
+            <RevealOnScroll key={recipe.id} delay={Math.min(i, 8) * 60} className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{recipe.name}</p>
@@ -133,7 +134,7 @@ export default function MyMenuPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </RevealOnScroll>
           )
         })}
       </div>

@@ -9,6 +9,7 @@ import { parseMenuText } from "../lib/menuParser"
 import { findFuzzyMatch } from "../lib/fuzzyMatch"
 import IngredientPicker from "../components/IngredientPicker"
 import StatusBadge from "../components/StatusBadge"
+import RevealOnScroll from "../components/RevealOnScroll"
 import type { Ingredient } from "../types"
 
 interface ReviewIngredient {
@@ -251,12 +252,12 @@ export default function VenueDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <RevealOnScroll>
         <Link to="/venues" className="text-xs text-[var(--cream-dim)] hover:underline">
           ← Venue scans
         </Link>
         <h1 className="mt-1 text-lg font-medium">{venue.name}</h1>
-      </div>
+      </RevealOnScroll>
 
       {purchaseMap.size > 0 && (
         <div className="rounded-md bg-[var(--gold)]/15 px-3 py-2 text-sm text-[var(--gold)]">
@@ -268,7 +269,10 @@ export default function VenueDetailPage() {
         </div>
       )}
 
-      <section className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
+      <RevealOnScroll
+        delay={80}
+        className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
+      >
         <p className="mb-1 text-sm font-medium">Import menu from a photo or PDF</p>
         <p className="mb-3 text-xs text-[var(--cream-dim)]">
           Upload a photo of {venue.name}'s menu, or a PDF, and this reads the text and proposes
@@ -424,17 +428,21 @@ export default function VenueDetailPage() {
             </button>
           </div>
         )}
-      </section>
+      </RevealOnScroll>
 
       <section className="space-y-4">
         {venueScans.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">No scans yet for this venue.</p>
         )}
-        {venueScans.map((scan) => {
+        {venueScans.map((scan, scanI) => {
           const scanRecipes = byName(recipes.filter((r) => r.scanId === scan.id))
           const isActive = activeScanId === scan.id
           return (
-            <div key={scan.id} className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
+            <RevealOnScroll
+              key={scan.id}
+              delay={Math.min(scanI, 8) * 60}
+              className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
+            >
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1">
@@ -586,7 +594,7 @@ export default function VenueDetailPage() {
                   </button>
                 </div>
               )}
-            </div>
+            </RevealOnScroll>
           )
         })}
       </section>

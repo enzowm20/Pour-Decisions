@@ -206,14 +206,16 @@ export default function ExperimentLabPage() {
   return (
     <div className="relative">
       <FallingBottles bottleImg={bombayBottle} />
-      <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
-      <p className="mb-4 text-sm text-[var(--cream-dim)]">
-        Select flavor tags to get combinations from your stocked ingredients. Ingredients combine
-        if they share a flavor tag and either a cocktail style or a pairing you've already logged
-        as "worked" in the archive. Anything that already matches an existing experiment or menu
-        item is skipped — these are meant to be genuinely new, not a recipe you already have on
-        file.
-      </p>
+      <RevealOnScroll>
+        <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
+        <p className="mb-4 text-sm text-[var(--cream-dim)]">
+          Select flavor tags to get combinations from your stocked ingredients. Ingredients combine
+          if they share a flavor tag and either a cocktail style or a pairing you've already logged
+          as "worked" in the archive. Anything that already matches an existing experiment or menu
+          item is skipped — these are meant to be genuinely new, not a recipe you already have on
+          file.
+        </p>
+      </RevealOnScroll>
 
       {stagedRecipe && stagedResult && (
         <div className="mb-6 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
@@ -261,7 +263,9 @@ export default function ExperimentLabPage() {
         </div>
       )}
 
-      <FlavorNeuralPicker selectedTags={selectedTags} onToggle={toggleTag} />
+      <RevealOnScroll delay={100}>
+        <FlavorNeuralPicker selectedTags={selectedTags} onToggle={toggleTag} />
+      </RevealOnScroll>
 
       {selectedTags.length === 0 && (
         <p className="text-sm text-[var(--cream-dim)]">Select at least one tag to see suggestions.</p>
@@ -336,10 +340,10 @@ export default function ExperimentLabPage() {
         )}
       </div>
 
-      <div className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+      <RevealOnScroll className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
         <SubstitutionManager />
         <FlaggedIngredients />
-      </div>
+      </RevealOnScroll>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import FallingBottles from "../components/FallingBottles"
+import RevealOnScroll from "../components/RevealOnScroll"
 import chambordBottle from "../assets/chambord-bottle.webp"
 
 export default function VenuesPage() {
@@ -19,34 +20,36 @@ export default function VenuesPage() {
   return (
     <div className="relative">
       <FallingBottles bottleImg={chambordBottle} />
-      <h1 className="mb-1 text-lg font-medium">Venue Scans</h1>
-      <p className="mb-4 text-sm text-[var(--cream-dim)]">
-        Track other venues' menus over time and compare them to your stock.
-      </p>
+      <RevealOnScroll>
+        <h1 className="mb-1 text-lg font-medium">Venue Scans</h1>
+        <p className="mb-4 text-sm text-[var(--cream-dim)]">
+          Track other venues' menus over time and compare them to your stock.
+        </p>
 
-      <form onSubmit={handleAdd} className="mb-4 flex gap-2">
-        <input
-          className="h-9 flex-1 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
-          placeholder="Venue name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button
-          type="submit"
-          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
-        >
-          Add venue
-        </button>
-      </form>
+        <form onSubmit={handleAdd} className="mb-4 flex gap-2">
+          <input
+            className="h-9 flex-1 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
+            placeholder="Venue name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+          >
+            Add venue
+          </button>
+        </form>
+      </RevealOnScroll>
 
       <div className="divide-y divide-[var(--cream-dim)]/15 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)]">
         {venues.length === 0 && (
           <p className="p-4 text-sm text-[var(--cream-dim)]">No venues yet.</p>
         )}
-        {byName(venues).map((venue) => {
+        {byName(venues).map((venue, i) => {
           const venueScans = scans.filter((s) => s.venueId === venue.id)
           return (
-            <div key={venue.id} className="flex items-center justify-between p-3">
+            <RevealOnScroll key={venue.id} delay={Math.min(i, 8) * 60} className="flex items-center justify-between p-3">
               <Link to={`/venues/${venue.id}`} className="min-w-0">
                 <p className="text-sm font-medium">{venue.name}</p>
                 <p className="text-xs text-[var(--cream-dim)]">
@@ -65,7 +68,7 @@ export default function VenuesPage() {
                   Remove
                 </button>
               </div>
-            </div>
+            </RevealOnScroll>
           )
         })}
       </div>
