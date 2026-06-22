@@ -51,16 +51,37 @@ function relax<T extends { x: number; y: number; r: number }>(points: T[], passe
   return points
 }
 
-function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
-  const mx = (x1 + x2) / 2
-  const my = (y1 + y2) / 2
+// A jagged, multi-segment ribbon rather than one clean arc — each layer gets
+// its own independent wander so the 3 stacked strands don't trace the same
+// shape, while jitter tapers to zero at both ends so it still lands exactly
+// on the two nodes it connects.
+function organicPath(x1: number, y1: number, x2: number, y2: number, seed: number) {
   const dx = x2 - x1
   const dy = y2 - y1
   const len = Math.hypot(dx, dy) || 1
-  const bow = (seed % 2 === 0 ? 1 : -1) * (14 + pseudoRandom(seed, 9) * 20)
-  const ctrlX = mx + (-dy / len) * bow
-  const ctrlY = my + (dx / len) * bow
-  return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`
+  const nx = -dy / len
+  const ny = dx / len
+
+  const segments = 5
+  let d = `M ${x1} ${y1}`
+  let prevX = x1
+  let prevY = y1
+  for (let s = 1; s <= segments; s++) {
+    const t = s / segments
+    const baseX = x1 + dx * t
+    const baseY = y1 + dy * t
+    const taper = Math.sin(Math.PI * t)
+    const jitter = (pseudoRandom(seed, s * 13.7) - 0.5) * 46 * taper
+    const along = (pseudoRandom(seed, s * 5.3) - 0.5) * 14 * taper
+    const px = baseX + nx * jitter + (dx / len) * along
+    const py = baseY + ny * jitter + (dy / len) * along
+    const ctrlX = (prevX + px) / 2 + (pseudoRandom(seed, s * 8.1) - 0.5) * 16 * taper
+    const ctrlY = (prevY + py) / 2 + (pseudoRandom(seed, s * 3.9) - 0.5) * 16 * taper
+    d += ` Q ${ctrlX} ${ctrlY}, ${px} ${py}`
+    prevX = px
+    prevY = py
+  }
+  return d
 }
 
 const ACCENTS = ["var(--teal)", "var(--gold)", "var(--berry)"]
@@ -71,7 +92,7 @@ function AuroraLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
       {ACCENTS.map((color, layer) => (
         <path
           key={layer}
-          d={curveBetween(from.x, from.y, to.x, to.y, seed + layer)}
+          d={organicPath(from.x, from.y, to.x, to.y, seed + layer * 17)}
           className={`aurora-strand aurora-strand-${layer}`}
           stroke={color}
           style={{ animationDelay: `${pseudoRandom(seed, 50 + layer) * 2}s` }}
@@ -115,7 +136,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   // Active layout: the same nodes pulled in toward the core along their own
   // angle, then relaxed again among just the selected subset so a cluster of
   // picks doesn't pile on top of itself near the center.
-  const activePositions = useMemo(() => {
+  const activeCluster = useMemo(() => {
     const active = nodes.filter((n) => selectedTags.includes(n.tag))
     const radius = 55 + active.length * 9
     const points = active.map((n) => ({
@@ -125,8 +146,38 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       y: CENTER + radius * Math.sin(n.angle),
     }))
     relax(points, 40)
-    return new Map(points.map((p) => [p.tag, { x: p.x, y: p.y }]))
+    return points
   }, [nodes, selectedTags])
+
+  const activePositions = useMemo(
+    () => new Map(activeCluster.map((p) => [p.tag, { x: p.x, y: p.y }])),
+    [activeCluster],
+  )
+
+  // Any still-resting node that the incoming active cluster would now
+  // overlap gets nudged straight back away from it — clears space in the
+  // middle instead of letting a word tag sit underneath the cluster.
+  const restingPositions = useMemo(() => {
+    const result = new Map<FlavorTag, { x: number; y: number }>()
+    for (const n of nodes) {
+      if (selectedTags.includes(n.tag)) continue
+      let pushX = 0
+      let pushY = 0
+      for (const ap of activeCluster) {
+        const dx = n.x - ap.x
+        const dy = n.y - ap.y
+        const dist = Math.hypot(dx, dy) || 0.01
+        const minDist = n.r + ap.r + MIN_GAP
+        if (dist < minDist) {
+          const overlap = minDist - dist
+          pushX += (dx / dist) * overlap
+          pushY += (dy / dist) * overlap
+        }
+      }
+      result.set(n.tag, { x: n.x + pushX, y: n.y + pushY })
+    }
+    return result
+  }, [nodes, activeCluster, selectedTags])
 
   const hasSelection = selectedTags.length > 0
 
@@ -137,13 +188,15 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
             neural-net texture. */}
         {nodes.map((n, i) => {
           const next = nodes[(i + 1) % nodes.length]
+          const from = activePositions.get(n.tag) ?? restingPositions.get(n.tag) ?? n
+          const to = activePositions.get(next.tag) ?? restingPositions.get(next.tag) ?? next
           return (
             <line
               key={`mesh-${n.tag}`}
-              x1={n.x}
-              y1={n.y}
-              x2={next.x}
-              y2={next.y}
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
               stroke="var(--cream-dim)"
               strokeWidth={1}
               opacity={0.12}
@@ -180,7 +233,9 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
 
       {nodes.map(({ tag, x, y, duration, delay, dx1, dy1, dx2, dy2, dx3, dy3 }) => {
         const isActive = selectedTags.includes(tag)
-        const pos = isActive ? activePositions.get(tag) ?? { x, y } : { x, y }
+        const pos = isActive
+          ? activePositions.get(tag) ?? { x, y }
+          : restingPositions.get(tag) ?? { x, y }
         return (
           <div
             key={tag}
