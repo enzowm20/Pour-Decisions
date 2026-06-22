@@ -307,8 +307,8 @@ export default function ExperimentLabPage() {
       </div>
 
       <div className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
-        <FlaggedIngredients />
         <SubstitutionManager />
+        <FlaggedIngredients />
       </div>
     </div>
   )
