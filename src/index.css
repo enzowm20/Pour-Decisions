@@ -38,13 +38,22 @@ body {
 }
 
 /* Experiment Lab flavor picker — floating "neuron" buttons around a pulsing
-   core, with synapse lines drawn to whichever ones are selected. */
+   core, with organic synapse arcs drawn to whichever ones are selected. */
 @keyframes neuron-float {
-  0%, 100% {
+  0% {
     transform: translate(-50%, -50%) translate(0, 0);
   }
-  50% {
-    transform: translate(-50%, -50%) translate(calc(var(--neuron-drift, 6px) * -0.6), calc(var(--neuron-drift, 6px) * -1));
+  22% {
+    transform: translate(-50%, -50%) translate(var(--dx1), var(--dy1));
+  }
+  54% {
+    transform: translate(-50%, -50%) translate(var(--dx2), var(--dy2));
+  }
+  81% {
+    transform: translate(-50%, -50%) translate(var(--dx3), var(--dy3));
+  }
+  100% {
+    transform: translate(-50%, -50%) translate(0, 0);
   }
 }
 .neuron-float {
@@ -67,16 +76,23 @@ body {
   animation: neuron-core-pulse 1.8s ease-in-out infinite;
 }
 
-@keyframes neuron-synapse-pulse {
-  0%, 100% {
-    opacity: 0.25;
+/* Dashes crawl along the curve and breathe in opacity, like a thought
+   travelling down a synapse rather than a static line. */
+@keyframes neuron-synapse-flow {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.3;
   }
   50% {
-    opacity: 0.8;
+    opacity: 0.85;
+  }
+  100% {
+    stroke-dashoffset: -40;
+    opacity: 0.3;
   }
 }
 .neuron-synapse {
-  animation: neuron-synapse-pulse 1.6s ease-in-out infinite;
+  animation: neuron-synapse-flow 1.4s linear infinite;
 }
 
 /* Venue Scans — Chambord: deep black-raspberry liquid, plum surfaces, gold crown accent. */
