@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
@@ -55,6 +55,34 @@ export default function ExperimentLabPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
+  const [revealedTags, setRevealedTags] = useState<FlavorTag[]>([])
+  const [isThinking, setIsThinking] = useState(false)
+  const thinkingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Gimmick: don't reveal suggestions the instant a tag is picked — let the
+  // neural picker "think" for a random 5-10s stretch first, like it's
+  // actually working the combination out rather than just filtering a list.
+  useEffect(() => {
+    if (thinkingTimeout.current) clearTimeout(thinkingTimeout.current)
+
+    if (selectedTags.length === 0) {
+      setIsThinking(false)
+      setRevealedTags([])
+      return
+    }
+
+    setIsThinking(true)
+    const delay = 5000 + Math.random() * 5000
+    thinkingTimeout.current = setTimeout(() => {
+      setRevealedTags(selectedTags)
+      setIsThinking(false)
+    }, delay)
+
+    return () => {
+      if (thinkingTimeout.current) clearTimeout(thinkingTimeout.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTags])
 
   const pairingGraph = useMemo(() => buildPairingGraph(experiments), [experiments])
   const provenGroups = useMemo(() => buildProvenGroups(experiments), [experiments])
@@ -84,9 +112,9 @@ export default function ExperimentLabPage() {
   }
 
   const combos = useMemo<Combo[]>(() => {
-    if (selectedTags.length === 0) return []
+    if (revealedTags.length === 0) return []
 
-    const flavorMatch = (i: Ingredient) => i.inStock && i.tags.some((t) => selectedTags.includes(t))
+    const flavorMatch = (i: Ingredient) => i.inStock && i.tags.some((t) => revealedTags.includes(t))
 
     const spiritCandidates = byName(
       ingredients.filter((i) => i.category === "spirit" && flavorMatch(i)),
@@ -151,7 +179,7 @@ export default function ExperimentLabPage() {
     }
 
     return result
-  }, [ingredients, selectedTags, pairingGraph, provenGroups, knownSignatures])
+  }, [ingredients, revealedTags, pairingGraph, provenGroups, knownSignatures])
 
   function tryCombo(combo: Combo) {
     const ingredientIds = Object.values(combo.bySlot)
@@ -160,7 +188,7 @@ export default function ExperimentLabPage() {
       .map((i) => i.id)
     const params = new URLSearchParams({
       ingredients: ingredientIds.join(","),
-      tags: selectedTags.join(","),
+      tags: revealedTags.join(","),
     })
     navigate(`/archive?${params.toString()}`)
   }
@@ -238,8 +266,20 @@ export default function ExperimentLabPage() {
         <p className="text-sm text-[var(--cream-dim)]">Select at least one tag to see suggestions.</p>
       )}
 
+      {isThinking && (
+        <p className="mb-3 flex items-center gap-2 text-sm text-[var(--gold)]">
+          <span className="thinking-pulse inline-block h-2 w-2 rounded-full bg-[var(--gold)]" />
+          Thinking through combinations
+          <span className="thinking-dots">
+            <span>.</span>
+            <span>.</span>
+            <span>.</span>
+          </span>
+        </p>
+      )}
+
       <div className="space-y-3">
-        {combos.map((combo, i) => {
+        {!isThinking && combos.map((combo, i) => {
           const presentCategories = DISPLAY_ORDER.filter((c) => (combo.bySlot[c] ?? []).length > 0)
           return (
             <div key={i} className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
@@ -264,7 +304,7 @@ export default function ExperimentLabPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-1.5">
-                  {selectedTags.map((tag) => (
+                  {revealedTags.map((tag) => (
                     <span
                       key={tag}
                       className="rounded-full bg-[var(--gold)]/15 px-2 py-0.5 text-[11px] text-[var(--gold)]"
@@ -284,7 +324,7 @@ export default function ExperimentLabPage() {
             </div>
           )
         })}
-        {selectedTags.length > 0 && combos.length === 0 && (
+        {!isThinking && revealedTags.length > 0 && combos.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">
             No new combinations available yet — either nothing in stock is tagged with these
             flavors, or every match already exists in your archive or a menu.

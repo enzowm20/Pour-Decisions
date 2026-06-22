@@ -1,12 +1,10 @@
 import { useMemo } from "react"
 import { FLAVOR_TAGS, type FlavorTag } from "../types"
 
-const VIEW_W = 900
-const VIEW_H = 380
-const CENTER_X = VIEW_W / 2
-const CENTER_Y = VIEW_H / 2
-const EDGE_MARGIN = 60
-const ACTIVE_RADIUS = 85
+const VIEW = 380
+const CENTER = VIEW / 2
+const BASE_RADIUS = 125
+const MIN_GAP = 16
 
 interface Props {
   selectedTags: FlavorTag[]
@@ -20,95 +18,159 @@ function pseudoRandom(seed: number, salt: number) {
   return x - Math.floor(x)
 }
 
-// Where a ray from the center, at angle theta, exits the rectangle — used so
-// resting positions are spread across the whole box edge, not a tidy circle.
-function edgePoint(theta: number) {
-  const dx = Math.cos(theta)
-  const dy = Math.sin(theta)
-  const halfW = VIEW_W / 2 - EDGE_MARGIN
-  const halfH = VIEW_H / 2 - EDGE_MARGIN
-  const scaleX = dx !== 0 ? halfW / Math.abs(dx) : Infinity
-  const scaleY = dy !== 0 ? halfH / Math.abs(dy) : Infinity
-  const scale = Math.min(scaleX, scaleY)
-  return { x: CENTER_X + dx * scale, y: CENTER_Y + dy * scale }
+// Pill width is roughly proportional to label length — used as a collision
+// radius so longer tags ("refreshing") claim more personal space than short
+// ones ("dry") when nodes get pushed apart.
+function nodeRadius(tag: string) {
+  return 20 + tag.length * 3.1
+}
+
+// Nudges any pair of points closer than their combined radii apart, run for
+// a fixed number of passes — settles an initial scatter into a non-
+// overlapping layout while keeping its rough shape.
+function relax<T extends { x: number; y: number; r: number }>(points: T[], passes: number) {
+  for (let pass = 0; pass < passes; pass++) {
+    for (let a = 0; a < points.length; a++) {
+      for (let b = a + 1; b < points.length; b++) {
+        const dx = points[b].x - points[a].x
+        const dy = points[b].y - points[a].y
+        const dist = Math.hypot(dx, dy) || 0.01
+        const minDist = points[a].r + points[b].r + MIN_GAP
+        if (dist < minDist) {
+          const push = (minDist - dist) / 2
+          const ux = dx / dist
+          const uy = dy / dist
+          points[a].x -= ux * push
+          points[a].y -= uy * push
+          points[b].x += ux * push
+          points[b].y += uy * push
+        }
+      }
+    }
+  }
+  return points
+}
+
+function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
+  const mx = (x1 + x2) / 2
+  const my = (y1 + y2) / 2
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len = Math.hypot(dx, dy) || 1
+  const bow = (seed % 2 === 0 ? 1 : -1) * (14 + pseudoRandom(seed, 9) * 20)
+  const ctrlX = mx + (-dy / len) * bow
+  const ctrlY = my + (dx / len) * bow
+  return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`
 }
 
 const ACCENTS = ["var(--teal)", "var(--gold)", "var(--berry)"]
 
+function AuroraLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
+  return (
+    <g className="aurora-group" style={{ animationDelay: `${pseudoRandom(seed, 40) * 2.5}s` }}>
+      {ACCENTS.map((color, layer) => (
+        <path
+          key={layer}
+          d={curveBetween(from.x, from.y, to.x, to.y, seed + layer)}
+          className={`aurora-strand aurora-strand-${layer}`}
+          stroke={color}
+          style={{ animationDelay: `${pseudoRandom(seed, 50 + layer) * 2}s` }}
+        />
+      ))}
+    </g>
+  )
+}
+
 export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
+  // Resting layout: an irregular ring (randomized angle + radius per node),
+  // then relaxed apart so labels never overlap no matter how the scatter
+  // landed. A faint static mesh between ring-neighbours gives the picker a
+  // constant "neural net" look even before anything's selected.
   const nodes = useMemo(() => {
-    return FLAVOR_TAGS.map((tag, i) => {
-      const theta =
-        (i / FLAVOR_TAGS.length) * Math.PI * 2 - Math.PI / 2 + (pseudoRandom(i, 0) - 0.5) * 0.3
-      const home = edgePoint(theta)
-      const activeR = ACTIVE_RADIUS + pseudoRandom(i, 30) * 30
-      const active = {
-        x: CENTER_X + activeR * Math.cos(theta),
-        y: CENTER_Y + activeR * Math.sin(theta),
-      }
-
-      // Three irregular drift offsets the float animation visits in turn, so
-      // resting motion reads as erratic wandering rather than a clean bob.
-      const drift = (salt: number, spread: number) => (pseudoRandom(i, salt) - 0.5) * spread
-
+    const points = FLAVOR_TAGS.map((tag, i) => {
+      const angle = (i / FLAVOR_TAGS.length) * Math.PI * 2 - Math.PI / 2 + (pseudoRandom(i, 0) - 0.5) * 0.55
+      const radius = BASE_RADIUS + (pseudoRandom(i, 12) - 0.5) * 80
       return {
         tag,
-        home,
-        active,
-        duration: 4 + pseudoRandom(i, 1) * 3.5,
-        delay: pseudoRandom(i, 2) * 4,
-        dx1: drift(3, 22),
-        dy1: drift(4, 22),
-        dx2: drift(5, 26),
-        dy2: drift(6, 26),
-        dx3: drift(7, 18),
-        dy3: drift(8, 18),
+        angle,
+        x: CENTER + radius * Math.cos(angle),
+        y: CENTER + radius * Math.sin(angle),
+        r: nodeRadius(tag),
       }
     })
+    relax(points, 60)
+    return points.map((p, i) => ({
+      ...p,
+      duration: 4 + pseudoRandom(i, 1) * 3.5,
+      delay: pseudoRandom(i, 2) * 4,
+      dx1: (pseudoRandom(i, 3) - 0.5) * 14,
+      dy1: (pseudoRandom(i, 4) - 0.5) * 14,
+      dx2: (pseudoRandom(i, 5) - 0.5) * 16,
+      dy2: (pseudoRandom(i, 6) - 0.5) * 16,
+      dx3: (pseudoRandom(i, 7) - 0.5) * 12,
+      dy3: (pseudoRandom(i, 8) - 0.5) * 12,
+    }))
   }, [])
+
+  // Active layout: the same nodes pulled in toward the core along their own
+  // angle, then relaxed again among just the selected subset so a cluster of
+  // picks doesn't pile on top of itself near the center.
+  const activePositions = useMemo(() => {
+    const active = nodes.filter((n) => selectedTags.includes(n.tag))
+    const radius = 55 + active.length * 9
+    const points = active.map((n) => ({
+      tag: n.tag,
+      r: n.r,
+      x: CENTER + radius * Math.cos(n.angle),
+      y: CENTER + radius * Math.sin(n.angle),
+    }))
+    relax(points, 40)
+    return new Map(points.map((p) => [p.tag, { x: p.x, y: p.y }]))
+  }, [nodes, selectedTags])
 
   const hasSelection = selectedTags.length > 0
 
-  function curveFor(x: number, y: number, i: number) {
-    const mx = (CENTER_X + x) / 2
-    const my = (CENTER_Y + y) / 2
-    const dx = x - CENTER_X
-    const dy = y - CENTER_Y
-    const len = Math.hypot(dx, dy) || 1
-    const bow = (i % 2 === 0 ? 1 : -1) * (18 + pseudoRandom(i, 9) * 20)
-    const ctrlX = mx + (-dy / len) * bow
-    const ctrlY = my + (dx / len) * bow
-    return `M ${CENTER_X} ${CENTER_Y} Q ${ctrlX} ${ctrlY} ${x} ${y}`
-  }
-
   return (
-    <div className="relative mb-6 w-full overflow-visible" style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}>
-      <svg
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className="absolute inset-0 h-full w-full overflow-visible"
-      >
-        {nodes.map(({ tag, active }, i) =>
-          selectedTags.includes(tag) ? (
-            <g
-              key={tag}
-              className="aurora-group"
-              style={{ animationDelay: `${pseudoRandom(i, 40) * 2.5}s` }}
-            >
-              {ACCENTS.map((color, layer) => (
-                <path
-                  key={layer}
-                  d={curveFor(active.x, active.y, i)}
-                  className={`aurora-strand aurora-strand-${layer}`}
-                  stroke={color}
-                  style={{ animationDelay: `${pseudoRandom(i, 50 + layer) * 2}s` }}
-                />
-              ))}
-            </g>
-          ) : null,
+    <div className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible">
+      <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
+        {/* Faint always-on mesh between ring-neighbours, for that constant
+            neural-net texture. */}
+        {nodes.map((n, i) => {
+          const next = nodes[(i + 1) % nodes.length]
+          return (
+            <line
+              key={`mesh-${n.tag}`}
+              x1={n.x}
+              y1={n.y}
+              x2={next.x}
+              y2={next.y}
+              stroke="var(--cream-dim)"
+              strokeWidth={1}
+              opacity={0.12}
+            />
+          )
+        })}
+
+        {/* Aurora synapses: each active node to the core, plus a full mesh
+            between every pair of active nodes — picks "talk" to each other. */}
+        {hasSelection &&
+          selectedTags.map((tag, i) => {
+            const pos = activePositions.get(tag)
+            if (!pos) return null
+            return <AuroraLink key={`hub-${tag}`} from={{ x: CENTER, y: CENTER }} to={pos} seed={i * 5} />
+          })}
+        {selectedTags.flatMap((tagA, ai) =>
+          selectedTags.slice(ai + 1).map((tagB, bi) => {
+            const posA = activePositions.get(tagA)
+            const posB = activePositions.get(tagB)
+            if (!posA || !posB) return null
+            return <AuroraLink key={`${tagA}-${tagB}`} from={posA} to={posB} seed={ai * 11 + bi * 7 + 3} />
+          }),
         )}
+
         <circle
-          cx={CENTER_X}
-          cy={CENTER_Y}
+          cx={CENTER}
+          cy={CENTER}
           r={hasSelection ? 14 : 7}
           fill="var(--gold)"
           opacity={hasSelection ? 0.85 : 0.35}
@@ -116,16 +178,16 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         />
       </svg>
 
-      {nodes.map(({ tag, home, active, duration, delay, dx1, dy1, dx2, dy2, dx3, dy3 }) => {
+      {nodes.map(({ tag, x, y, duration, delay, dx1, dy1, dx2, dy2, dx3, dy3 }) => {
         const isActive = selectedTags.includes(tag)
-        const pos = isActive ? active : home
+        const pos = isActive ? activePositions.get(tag) ?? { x, y } : { x, y }
         return (
           <div
             key={tag}
             style={
               {
-                left: `${(pos.x / VIEW_W) * 100}%`,
-                top: `${(pos.y / VIEW_H) * 100}%`,
+                left: `${(pos.x / VIEW) * 100}%`,
+                top: `${(pos.y / VIEW) * 100}%`,
                 transition: "left 0.9s cubic-bezier(0.22, 1, 0.36, 1), top 0.9s cubic-bezier(0.22, 1, 0.36, 1)",
                 animationDuration: `${duration}s`,
                 animationDelay: `${delay}s`,

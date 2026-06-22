@@ -120,6 +120,21 @@ body {
 .aurora-strand-1 { animation: aurora-fade-1 4.4s ease-in-out infinite; }
 .aurora-strand-2 { animation: aurora-fade-2 5.1s ease-in-out infinite; }
 
+/* "Thinking" gimmick — pulsing dot plus a sequential ellipsis. */
+@keyframes thinking-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.6); opacity: 1; }
+}
+.thinking-pulse {
+  animation: thinking-pulse 0.9s ease-in-out infinite;
+}
+.thinking-dots span {
+  animation: thinking-pulse 1.2s ease-in-out infinite;
+  display: inline-block;
+}
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
 /* Venue Scans — Chambord: deep black-raspberry liquid, plum surfaces, gold crown accent. */
 .theme-chambord {
   --bg: #1a0816;
