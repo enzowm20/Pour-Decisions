@@ -59,6 +59,7 @@ export default function VenueDetailPage() {
 
   const [isProcessing, setIsProcessing] = useState(false)
   const [parseError, setParseError] = useState("")
+  const [rawText, setRawText] = useState<string | null>(null)
   const [reviewRecipes, setReviewRecipes] = useState<ReviewRecipe[] | null>(null)
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null)
   const [photoDate, setPhotoDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -109,6 +110,7 @@ export default function VenueDetailPage() {
 
     setIsProcessing(true)
     setParseError("")
+    setRawText(null)
     setReviewRecipes(null)
     setSaveStatus("")
 
@@ -117,24 +119,40 @@ export default function VenueDetailPage() {
         extractTextFromFile(file),
         file.type.startsWith("image/") ? fileToDataUrl(file) : Promise.resolve(null),
       ])
-      const parsed = parseMenuText(text)
       setPendingPhoto(photoDataUrl)
-      setReviewRecipes(
-        parsed.map((r) => ({
-          name: r.name,
-          include: true,
-          ingredients: r.ingredientNames.map((n) => buildReviewIngredient(n, ingredients)),
-        })),
-      )
-      if (parsed.length === 0) {
+      setRawText(text)
+      if (text.trim().length === 0) {
         setParseError(
-          "Couldn't find anything that looked like a recipe in this file. If it's a scanned PDF with no real text layer, try uploading it as an image instead.",
+          "No text came out of that file at all. If it's a scanned PDF with no real text layer, try uploading it as an image instead.",
         )
       }
     } catch (err) {
       setParseError(err instanceof Error ? err.message : "Couldn't read that file.")
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // Re-runnable on demand — lets you fix OCR mistakes (a misread word, "lemon
+  // and ginger" run together as one ingredient instead of two, etc.) in the
+  // raw text and re-parse as many times as you like before committing to a
+  // recipe list.
+  function handleParseRawText() {
+    if (rawText === null) return
+    const parsed = parseMenuText(rawText)
+    setReviewRecipes(
+      parsed.map((r) => ({
+        name: r.name,
+        include: true,
+        ingredients: r.ingredientNames.map((n) => buildReviewIngredient(n, ingredients)),
+      })),
+    )
+    if (parsed.length === 0) {
+      setParseError(
+        "Couldn't find anything that looked like a recipe in that text. Try splitting names and ingredient lines onto their own lines below.",
+      )
+    } else {
+      setParseError("")
     }
   }
 
@@ -289,6 +307,28 @@ export default function VenueDetailPage() {
         >
           Or start a blank scan to log cocktails by hand instead
         </button>
+
+        {rawText !== null && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-[var(--cream-dim)]">
+              Raw text read from the file — fix anything misread before parsing it into recipes.
+              For example, if a line reads "lemon and ginger" as one ingredient when it should be
+              two, split it onto two lines (or add a comma between them).
+            </p>
+            <textarea
+              className="h-40 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] p-2 text-xs text-[var(--cream)]"
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={handleParseRawText}
+              className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+            >
+              Parse this text into recipes
+            </button>
+          </div>
+        )}
 
         {reviewRecipes && reviewRecipes.length > 0 && (
           <div className="mt-3 space-y-2">
