@@ -133,26 +133,26 @@ body {
   --on-sage: #3d0f24;
 }
 
-/* Home — Ambra Limoncello: vivid lemon-yellow liquid, Amalfi-coast navy surfaces, gold trim. */
+/* Home — Ambra Limoncello: yellow liquid, near-black surfaces, pink/teal/gold accents. */
 .theme-limoncello {
-  --bg: #0d2a40;
-  --surface: #163e5c;
-  --surface-raised: color-mix(in srgb, #163e5c 80%, white 12%);
+  --bg: #0d0d0d;
+  --surface: color-mix(in srgb, #0d0d0d 88%, white 8%);
+  --surface-raised: color-mix(in srgb, #0d0d0d 78%, white 14%);
 
-  --primary: #f7d117;
-  --primary-hover: #ffe25c;
-  --on-primary: #0d2a40;
+  --primary: #f2dd72;
+  --primary-hover: #d9b959;
+  --on-primary: #0d0d0d;
 
-  --gold: #c9960a;
-  --berry: #8c2a1f;
-  --teal: #2c7da0;
-  --sage: #4caf50;
+  --gold: #d9b959;
+  --berry: #f28095;
+  --teal: #59d9cc;
+  --sage: color-mix(in srgb, #59d9cc 50%, #f2dd72 50%);
 
-  --cream: #fff8dc;
-  --cream-dim: color-mix(in srgb, #fff8dc 65%, #163e5c 35%);
+  --cream: color-mix(in srgb, #f2dd72 70%, white 30%);
+  --cream-dim: color-mix(in srgb, #f2dd72 55%, #0d0d0d 25%);
 
-  --on-gold: #0d2a40;
-  --on-berry: #fff8dc;
-  --on-teal: #fff8dc;
-  --on-sage: #fff8dc;
+  --on-gold: #0d0d0d;
+  --on-berry: #0d0d0d;
+  --on-teal: #0d0d0d;
+  --on-sage: #0d0d0d;
 }

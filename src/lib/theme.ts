@@ -28,7 +28,7 @@ const LIQUID_COLORS: Record<ThemeName, string[]> = {
   bombay: ["#0B2A4A", "#123F6E", "#6FA8DC", "#1C5C9E", "#1768AD"],
   jager: ["#1A0E08", "#2E1810", "#6E3A1E", "#3F2012", "#2B160C"],
   gordons: ["#4A1228", "#7A1F45", "#F2C2D9", "#D9447D", "#E87FAE"],
-  limoncello: ["#8C6A00", "#B8920A", "#FFF6C2", "#F2C230", "#F7D117"],
+  limoncello: ["#6C5C2C", "#9C8A3E", "#FBEFB0", "#D9B959", "#F2DD72"],
 }
 
 export interface LiquidLayer {

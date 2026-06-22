@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import logoLimoncello from "../assets/logo-limoncello.png"
+import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
 
 const TABS = [
   {
@@ -32,9 +32,9 @@ const TABS = [
 export default function HomePage() {
   return (
     <div className="space-y-10 text-center">
-      <div className="flex justify-center rounded-2xl bg-[var(--cream)] px-8 py-10 sm:px-12 sm:py-16">
+      <div className="flex justify-center pt-2">
         <img
-          src={logoLimoncello}
+          src={logoLimoncelloHero}
           alt="Pour Decisions — match, mix, sip"
           className="h-56 w-auto sm:h-80 md:h-96"
         />
