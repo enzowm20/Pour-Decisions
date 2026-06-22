@@ -6,10 +6,11 @@ import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithi
 import { checkRecipe } from "../lib/recipeCheck"
 import SubstitutionManager from "../components/SubstitutionManager"
 import FlaggedIngredients from "../components/FlaggedIngredients"
+import FlavorNeuralPicker from "../components/FlavorNeuralPicker"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import bombayBottle from "../assets/bombay-bottle.webp"
-import { FLAVOR_TAGS, type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
+import { type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
 const CAPS: Record<IngredientCategory, number> = {
   spirit: 4,
@@ -231,22 +232,7 @@ export default function ExperimentLabPage() {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {FLAVOR_TAGS.map((tag) => (
-          <button
-            key={tag}
-            type="button"
-            onClick={() => toggleTag(tag)}
-            className={`rounded-full border px-3 py-1.5 text-sm ${
-              selectedTags.includes(tag)
-                ? "border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
-                : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
-            }`}
-          >
-            {tag}
-          </button>
-        ))}
-      </div>
+      <FlavorNeuralPicker selectedTags={selectedTags} onToggle={toggleTag} />
 
       {selectedTags.length === 0 && (
         <p className="text-sm text-[var(--cream-dim)]">Select at least one tag to see suggestions.</p>

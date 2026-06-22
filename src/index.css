@@ -37,6 +37,48 @@ body {
   color: var(--cream);
 }
 
+/* Experiment Lab flavor picker — floating "neuron" buttons around a pulsing
+   core, with synapse lines drawn to whichever ones are selected. */
+@keyframes neuron-float {
+  0%, 100% {
+    transform: translate(-50%, -50%) translate(0, 0);
+  }
+  50% {
+    transform: translate(-50%, -50%) translate(calc(var(--neuron-drift, 6px) * -0.6), calc(var(--neuron-drift, 6px) * -1));
+  }
+}
+.neuron-float {
+  animation-name: neuron-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes neuron-core-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.35);
+  }
+}
+.neuron-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: neuron-core-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes neuron-synapse-pulse {
+  0%, 100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+.neuron-synapse {
+  animation: neuron-synapse-pulse 1.6s ease-in-out infinite;
+}
+
 /* Venue Scans — Chambord: deep black-raspberry liquid, plum surfaces, gold crown accent. */
 .theme-chambord {
   --bg: #1a0816;
