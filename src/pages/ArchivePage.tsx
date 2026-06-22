@@ -4,6 +4,8 @@ import { useData } from "../context/DataContext"
 import { fileToDataUrl } from "../lib/storage"
 import { byName } from "../lib/sort"
 import IngredientPicker from "../components/IngredientPicker"
+import FallingBottles from "../components/FallingBottles"
+import jagerBottle from "../assets/jager-bottle.webp"
 import type { ExperimentOutcome, FlavorTag, GlassType } from "../types"
 import { FLAVOR_TAGS, GLASS_TYPES } from "../types"
 
@@ -80,7 +82,8 @@ export default function ArchivePage() {
     "h-9 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      <FallingBottles bottleImg={jagerBottle} />
       <div>
         <h1 className="mb-1 text-lg font-medium">Experiment Archive</h1>
         <p className="text-sm text-[var(--cream-dim)]">

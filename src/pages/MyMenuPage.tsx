@@ -4,6 +4,8 @@ import { byName } from "../lib/sort"
 import { checkRecipe } from "../lib/recipeCheck"
 import { margin, marginPercent, recipeCost } from "../lib/cost"
 import StatusBadge from "../components/StatusBadge"
+import FallingBottles from "../components/FallingBottles"
+import gordonsBottle from "../assets/gordons-bottle.webp"
 import type { MenuCategory } from "../types"
 
 const TABS: { value: MenuCategory; label: string }[] = [
@@ -20,7 +22,8 @@ export default function MyMenuPage() {
   const byId = new Map(ingredients.map((i) => [i.id, i]))
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <FallingBottles bottleImg={gordonsBottle} />
       <div>
         <h1 className="mb-1 text-lg font-medium">My Menu</h1>
         <p className="text-sm text-[var(--cream-dim)]">

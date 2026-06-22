@@ -6,6 +6,8 @@ import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithi
 import { checkRecipe } from "../lib/recipeCheck"
 import SubstitutionManager from "../components/SubstitutionManager"
 import StatusBadge from "../components/StatusBadge"
+import FallingBottles from "../components/FallingBottles"
+import bombayBottle from "../assets/bombay-bottle.webp"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
 const CAPS: Record<IngredientCategory, number> = {
@@ -171,7 +173,8 @@ export default function ExperimentLabPage() {
   }
 
   return (
-    <div>
+    <div className="relative">
+      <FallingBottles bottleImg={bombayBottle} />
       <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
       <p className="mb-4 text-sm text-[var(--cream-dim)]">
         Select flavor tags to get combinations from your stocked ingredients. Ingredients combine

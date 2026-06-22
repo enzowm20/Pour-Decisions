@@ -3,6 +3,8 @@ import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import { lookupStyles } from "../lib/styleLookup"
 import SubstitutionManager from "../components/SubstitutionManager"
+import FallingBottles from "../components/FallingBottles"
+import aperolBottle from "../assets/aperol-bottle.webp"
 import {
   CATEGORY_LABELS,
   FLAVOR_TAGS,
@@ -96,7 +98,8 @@ export default function StockPage() {
     "h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
 
   return (
-    <div className="space-y-8">
+    <div className="relative space-y-8">
+      <FallingBottles bottleImg={aperolBottle} />
       <section>
         <h1 className="mb-1 text-lg font-medium">Your Stock</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">

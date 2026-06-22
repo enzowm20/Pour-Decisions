@@ -2,6 +2,8 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
+import FallingBottles from "../components/FallingBottles"
+import chambordBottle from "../assets/chambord-bottle.webp"
 
 export default function VenuesPage() {
   const { venues, addVenue, scans, removeVenue } = useData()
@@ -15,7 +17,8 @@ export default function VenuesPage() {
   }
 
   return (
-    <div>
+    <div className="relative">
+      <FallingBottles bottleImg={chambordBottle} />
       <h1 className="mb-1 text-lg font-medium">Venue Scans</h1>
       <p className="mb-4 text-sm text-[var(--cream-dim)]">
         Track other venues' menus over time and compare them to your stock.
