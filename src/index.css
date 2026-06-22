@@ -148,7 +148,7 @@ body {
   --teal: #59d9cc;
   --sage: color-mix(in srgb, #59d9cc 50%, #f2dd72 50%);
 
-  --cream: color-mix(in srgb, #f2dd72 70%, white 30%);
+  --cream: color-mix(in srgb, #f2dd72 18%, white 82%);
   --cream-dim: color-mix(in srgb, #f2dd72 55%, #0d0d0d 25%);
 
   --on-gold: #0d0d0d;
