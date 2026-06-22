@@ -1,15 +1,7 @@
 import { Link } from "react-router-dom"
 import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
-import vanillaBottle from "../assets/vanilla-bottle.webp"
-import wildberryBottle from "../assets/wildberry-bottle.webp"
-import limeBottle from "../assets/lime-bottle.webp"
-import passionfruitBottle from "../assets/passionfruit-bottle.webp"
-import raspberryBottle from "../assets/raspberry-bottle.webp"
+import limoncelloBottle from "../assets/limoncello-bottle.webp"
 import FallingBottles from "../components/FallingBottles"
-
-// Home gets its own mixed set of five flavour bottles, distinct from the
-// single spirit each other tab is themed around.
-const HOME_BOTTLES = [vanillaBottle, wildberryBottle, limeBottle, passionfruitBottle, raspberryBottle]
 
 const TABS = [
   {
@@ -42,7 +34,7 @@ const TABS = [
 export default function HomePage() {
   return (
     <div className="relative space-y-10 text-center">
-      <FallingBottles bottleImg={HOME_BOTTLES} />
+      <FallingBottles bottleImg={limoncelloBottle} />
 
       <div className="flex justify-center pt-2">
         <img

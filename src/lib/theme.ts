@@ -28,10 +28,7 @@ const LIQUID_COLORS: Record<ThemeName, string[]> = {
   bombay: ["#0B2A4A", "#123F6E", "#6FA8DC", "#1C5C9E", "#1768AD"],
   jager: ["#1A0E08", "#2E1810", "#6E3A1E", "#3F2012", "#2B160C"],
   gordons: ["#4A1228", "#7A1F45", "#F2C2D9", "#D9447D", "#E87FAE"],
-  // Home blends the core colour sampled from each of its five flavour
-  // bottles: wildberry purple (back), raspberry pink-red, vanilla cream
-  // (the lighter peek highlight), lime green, passionfruit orange (front).
-  limoncello: ["#3C0C60", "#A80048", "#F5EEDC", "#4C8C00", "#F0A830"],
+  limoncello: ["#6C5C2C", "#9C8A3E", "#FBEFB0", "#D9B959", "#F2DD72"],
 }
 
 export interface LiquidLayer {
