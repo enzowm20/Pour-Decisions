@@ -138,10 +138,10 @@ export default function StockPage() {
     const isEditingStyles = editingStylesId === ing.id
     return (
       <div key={ing.id} className="p-3">
-        <div className="flex flex-nowrap items-center justify-between gap-3">
+        <div className="flex flex-nowrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{ing.name}</p>
-            <p className="truncate text-xs text-[var(--cream-dim)]">
+            <p className="text-sm font-medium">{ing.name}</p>
+            <p className="text-xs text-[var(--cream-dim)]">
               {CATEGORY_LABELS[ing.category]}
               {ing.tags.length > 0 ? ` · ${[...ing.tags].sort().join(", ")}` : ""}
               {ingStyles.length > 0
@@ -259,7 +259,7 @@ export default function StockPage() {
           </button>
         </form>
 
-        <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Flavor</p>
+        <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Flavour Profile</p>
         <div className="mb-4 flex flex-wrap gap-2">
           {FLAVOR_TAGS.map((tag) => (
             <button
@@ -277,10 +277,7 @@ export default function StockPage() {
           ))}
         </div>
 
-        <p className="mb-1.5 text-xs text-[var(--cream-dim)]">
-          Cocktail style — what it actually gets used in, so the lab doesn't pair it with
-          unrelated ingredients
-        </p>
+        <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Cocktail Style</p>
         <div className="mb-4 flex flex-wrap gap-2">
           {STYLE_TAGS.map((style) => (
             <button

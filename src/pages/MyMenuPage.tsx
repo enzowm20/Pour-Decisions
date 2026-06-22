@@ -25,7 +25,7 @@ export default function MyMenuPage() {
     <div className="relative space-y-4">
       <FallingBottles bottleImg={gordonsBottle} />
       <div>
-        <h1 className="mb-1 text-lg font-medium">My Menu</h1>
+        <h1 className="mb-1 text-lg font-medium">My Cocktails</h1>
         <p className="text-sm text-[var(--cream-dim)]">
           Cocktails you've promoted from the Archive. Tap "Add to my menu" on a successful
           experiment to land it here.
