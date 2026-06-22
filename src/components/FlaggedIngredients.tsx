@@ -32,9 +32,9 @@ export default function FlaggedIngredients() {
       </p>
       <div className="divide-y divide-[var(--cream-dim)]/15 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)]">
         {flagged.map((name) => (
-          <div key={name} className="space-y-2 p-3">
-            <span className="block text-sm">{name}</span>
-            <div className="flex flex-wrap items-center gap-2">
+          <div key={name} className="flex items-start justify-between gap-3 p-3">
+            <span className="min-w-0 flex-1 text-sm">{name}</span>
+            <div className="flex flex-shrink-0 flex-nowrap items-center gap-2 whitespace-nowrap">
               <span className="text-xs text-[var(--cream-dim)]">use instead</span>
               <select
                 className="h-8 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-xs text-[var(--cream)]"
