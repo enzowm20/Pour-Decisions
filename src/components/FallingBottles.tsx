@@ -27,6 +27,7 @@ const BOTTLES = [
 
 const LOOP_HEIGHT_VH = 120 // a bit more than one full viewport, so each bottle actually crosses top to bottom
 const ASPECT = 1280 / 1024 // source image height / width
+const SIZE_MULTIPLIER = 2.5
 
 interface Props {
   bottleImg: string
@@ -56,7 +57,8 @@ export default function FallingBottles({ bottleImg }: Props) {
       }}
     >
       {BOTTLES.map((b, i) => {
-        const height = b.size * ASPECT
+        const size = b.size * SIZE_MULTIPLIER
+        const height = size * ASPECT
         const loopPx = (LOOP_HEIGHT_VH / 100) * window.innerHeight
         const fallDistance = scrollY * b.fallSpeed + b.loopFraction * loopPx
         const topPx = (((fallDistance % loopPx) + loopPx) % loopPx) - height
@@ -68,7 +70,7 @@ export default function FallingBottles({ bottleImg }: Props) {
             key={i}
             src={bottleImg}
             alt=""
-            width={b.size}
+            width={size}
             height={height}
             style={{
               position: "absolute",
