@@ -108,6 +108,7 @@ export const GLASS_TYPES = [
   "fluted tall glass",
   "fluted short glass",
   "coupe",
+  "wine glass",
   "mason jar",
   "carafe",
 ] as const

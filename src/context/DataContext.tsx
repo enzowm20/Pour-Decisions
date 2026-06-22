@@ -5,7 +5,7 @@ import type { Experiment, Ingredient, Recipe, Scan, Substitution, Venue } from "
 
 interface DataContextValue {
   ingredients: Ingredient[]
-  addIngredient: (data: Omit<Ingredient, "id">) => void
+  addIngredient: (data: Omit<Ingredient, "id">) => Ingredient
   updateIngredient: (id: string, data: Partial<Ingredient>) => void
   removeIngredient: (id: string) => void
 
@@ -27,7 +27,7 @@ interface DataContextValue {
   removeRecipe: (id: string) => void
 
   experiments: Experiment[]
-  addExperiment: (data: Omit<Experiment, "id">) => void
+  addExperiment: (data: Omit<Experiment, "id">) => Experiment
   updateExperiment: (id: string, data: Partial<Experiment>) => void
   removeExperiment: (id: string) => void
 }
@@ -47,7 +47,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const value: DataContextValue = {
     ingredients,
-    addIngredient: (data) => setIngredients((prev) => [...prev, { ...data, id: makeId() }]),
+    addIngredient: (data) => {
+      const ingredient = { ...data, id: makeId() }
+      setIngredients((prev) => [...prev, ingredient])
+      return ingredient
+    },
     updateIngredient: (id, data) =>
       setIngredients((prev) => prev.map((i) => (i.id === id ? { ...i, ...data } : i))),
     removeIngredient: (id) => setIngredients((prev) => prev.filter((i) => i.id !== id)),
@@ -92,8 +96,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     removeRecipe: (id) => setRecipes((prev) => prev.filter((r) => r.id !== id)),
 
     experiments,
-    addExperiment: (data) =>
-      setExperiments((prev) => [...prev, { ...data, id: makeId() }]),
+    addExperiment: (data) => {
+      const experiment = { ...data, id: makeId() }
+      setExperiments((prev) => [...prev, experiment])
+      return experiment
+    },
     updateExperiment: (id, data) =>
       setExperiments((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } : e))),
     removeExperiment: (id) => setExperiments((prev) => prev.filter((e) => e.id !== id)),
