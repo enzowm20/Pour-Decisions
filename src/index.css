@@ -76,24 +76,49 @@ body {
   animation: neuron-core-pulse 1.8s ease-in-out infinite;
 }
 
-/* Dashes crawl along the curve and breathe in opacity, like a thought
-   travelling down a synapse rather than a static line. */
-@keyframes neuron-synapse-flow {
-  0% {
-    stroke-dashoffset: 0;
-    opacity: 0.3;
+/* Aurora-borealis-style connections: 3 stacked, blurred, additively-blended
+   strands per link that breathe through opacity/width out of sync with each
+   other, plus a slow whole-group wobble — reads as a shifting curtain of
+   light rather than a static drawn line. */
+.aurora-group {
+  animation: aurora-wobble 6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes aurora-wobble {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
   }
   50% {
-    opacity: 0.85;
-  }
-  100% {
-    stroke-dashoffset: -40;
-    opacity: 0.3;
+    transform: rotate(1.4deg) scale(1.02);
   }
 }
-.neuron-synapse {
-  animation: neuron-synapse-flow 1.4s linear infinite;
+
+.aurora-strand {
+  fill: none;
+  stroke-linecap: round;
+  filter: blur(3px);
+  mix-blend-mode: screen;
 }
+
+@keyframes aurora-fade-0 {
+  0%, 100% { opacity: 0.15; stroke-width: 4; }
+  40% { opacity: 0.9; stroke-width: 8; }
+  75% { opacity: 0.3; stroke-width: 5; }
+}
+@keyframes aurora-fade-1 {
+  0%, 100% { opacity: 0.25; stroke-width: 5; }
+  55% { opacity: 0.85; stroke-width: 9; }
+  85% { opacity: 0.2; stroke-width: 4; }
+}
+@keyframes aurora-fade-2 {
+  0%, 100% { opacity: 0.2; stroke-width: 4; }
+  65% { opacity: 0.8; stroke-width: 8; }
+  90% { opacity: 0.25; stroke-width: 5; }
+}
+.aurora-strand-0 { animation: aurora-fade-0 3.8s ease-in-out infinite; }
+.aurora-strand-1 { animation: aurora-fade-1 4.4s ease-in-out infinite; }
+.aurora-strand-2 { animation: aurora-fade-2 5.1s ease-in-out infinite; }
 
 /* Venue Scans — Chambord: deep black-raspberry liquid, plum surfaces, gold crown accent. */
 .theme-chambord {
