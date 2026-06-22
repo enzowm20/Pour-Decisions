@@ -44,6 +44,9 @@ export default function Layout() {
   const location = useLocation()
   const theme = themeForPath(location.pathname)
   const isHome = location.pathname === "/"
+  // Stock's ingredient rows need extra room to stay on one line; every other
+  // page keeps the original width.
+  const maxWidth = location.pathname.startsWith("/stock") ? "max-w-5xl" : "max-w-4xl"
 
   // Each page should start its own drain from full, not inherit scroll
   // position from whichever page you were on before navigating.
@@ -65,7 +68,7 @@ export default function Layout() {
           sign-out on the right. */}
       {!isHome && (
         <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--cream)]">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+          <div className={`mx-auto flex ${maxWidth} flex-wrap items-center justify-between gap-4 px-4 py-3`}>
             <Link to="/">
               <img
                 src={LOGOS[theme]}
@@ -114,7 +117,7 @@ export default function Layout() {
         </header>
       )}
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className={`mx-auto ${maxWidth} px-4 py-6`}>
         {/* Opaque panel so page content stays readable as the liquid level
             passes behind it — only the margins around this card reveal the
             draining background. */}
