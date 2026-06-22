@@ -103,7 +103,10 @@ export default function StockPage() {
       <section>
         <h1 className="mb-1 text-lg font-medium">Your Stock</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">
-          Add every ingredient you carry. Toggle in/out of stock as it runs out.
+          Add every ingredient you carry. Toggle in/out of stock as it runs out. "Solo sell
+          price" is what this would sell for on its own (a shot, a glass) — not what you paid
+          for it, since that's not tracked here. My Menu uses it to compare a cocktail's price
+          against the sum of its components sold separately.
         </p>
 
         <form onSubmit={handleAddIngredient} className="mb-4 flex flex-wrap items-end gap-2">
@@ -129,7 +132,7 @@ export default function StockPage() {
             step="0.01"
             min="0"
             className={`${inputClass} w-28`}
-            placeholder="Cost / serving"
+            placeholder="Solo sell price"
             value={costPerServing}
             onChange={(e) => setCostPerServing(e.target.value)}
           />
@@ -231,6 +234,7 @@ export default function StockPage() {
                         type="number"
                         step="0.01"
                         min="0"
+                        title="Solo sell price per serving — what this would sell for on its own, not what you paid for it"
                         className="h-7 w-16 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
                         placeholder="0.00"
                         defaultValue={ing.costPerServing ?? ""}

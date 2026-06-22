@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import { checkRecipe } from "../lib/recipeCheck"
-import { margin, marginPercent, recipeCost } from "../lib/cost"
+import { markup, markupPercent, recipeComponentsSoloValue } from "../lib/cost"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import gordonsBottle from "../assets/gordons-bottle.webp"
@@ -28,7 +28,9 @@ export default function MyMenuPage() {
         <h1 className="mb-1 text-lg font-medium">My Menu</h1>
         <p className="text-sm text-[var(--cream-dim)]">
           Cocktails you've promoted from the Archive. Tap "Add to my menu" on a successful
-          experiment to land it here.
+          experiment to land it here. "Vs. solo pricing" compares the cocktail's price to the sum
+          of what each ingredient sells for on its own — it's not a true profit margin, since
+          purchase cost isn't tracked here.
         </p>
       </div>
 
@@ -57,10 +59,10 @@ export default function MyMenuPage() {
         )}
         {menuRecipes.map((recipe) => {
           const result = checkRecipe(recipe, ingredients, substitutions)
-          const cost = recipeCost(recipe, ingredients)
+          const soloValue = recipeComponentsSoloValue(recipe, ingredients)
           const sellPrice = recipe.sellPrice ?? 0
-          const recipeMargin = margin(sellPrice, cost)
-          const marginPct = marginPercent(sellPrice, cost)
+          const recipeMarkup = markup(sellPrice, soloValue)
+          const markupPct = markupPercent(sellPrice, soloValue)
           const otherCategory: MenuCategory = tab === "core" ? "seasonal" : "core"
 
           return (
@@ -96,8 +98,8 @@ export default function MyMenuPage() {
 
               <div className="mt-3 flex flex-wrap items-end gap-4 border-t border-[var(--cream-dim)]/10 pt-3">
                 <div>
-                  <p className="text-[11px] text-[var(--cream-dim)]">Cost / serving</p>
-                  <p className="text-sm">${cost.toFixed(2)}</p>
+                  <p className="text-[11px] text-[var(--cream-dim)]">Sum of solo prices</p>
+                  <p className="text-sm">${soloValue.toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="mb-1 text-[11px] text-[var(--cream-dim)]">Sell price</p>
@@ -121,14 +123,16 @@ export default function MyMenuPage() {
                 </div>
                 {recipe.sellPrice !== undefined && (
                   <div>
-                    <p className="text-[11px] text-[var(--cream-dim)]">Margin</p>
+                    <p className="text-[11px] text-[var(--cream-dim)]" title="Cocktail price vs. what these components would sell for separately — not a true profit margin, since purchase cost isn't tracked here">
+                      vs. solo pricing
+                    </p>
                     <p
                       className={`text-sm font-medium ${
-                        recipeMargin >= 0 ? "text-[var(--sage)]" : "text-[var(--berry)]"
+                        recipeMarkup >= 0 ? "text-[var(--sage)]" : "text-[var(--berry)]"
                       }`}
                     >
-                      ${recipeMargin.toFixed(2)}
-                      {marginPct !== null ? ` (${marginPct.toFixed(0)}%)` : ""}
+                      ${recipeMarkup.toFixed(2)}
+                      {markupPct !== null ? ` (${markupPct.toFixed(0)}%)` : ""}
                     </p>
                   </div>
                 )}
