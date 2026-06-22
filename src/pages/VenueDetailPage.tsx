@@ -4,6 +4,7 @@ import { useData } from "../context/DataContext"
 import { checkRecipe } from "../lib/recipeCheck"
 import { fileToDataUrl } from "../lib/storage"
 import { byName } from "../lib/sort"
+import { SEED_EXPERIMENTS, SEED_INGREDIENTS } from "../lib/fiddlerImport"
 import IngredientPicker from "../components/IngredientPicker"
 import StatusBadge from "../components/StatusBadge"
 
@@ -19,6 +20,7 @@ export default function VenueDetailPage() {
     addRecipe,
     removeRecipe,
     ingredients,
+    addIngredient,
     substitutions,
   } = useData()
 
@@ -30,6 +32,7 @@ export default function VenueDetailPage() {
 
   const [recipeName, setRecipeName] = useState("")
   const [recipeIngredientIds, setRecipeIngredientIds] = useState<string[]>([])
+  const [importStatus, setImportStatus] = useState("")
 
   if (!venue) {
     return <p className="text-sm text-[var(--cream-dim)]">Venue not found.</p>
@@ -66,9 +69,47 @@ export default function VenueDetailPage() {
     setRecipeIngredientIds([])
   }
 
-  const handleSendToArchive = (recipe: { name: string; ingredientIds: string[] }) => {
+  const handleSendToLab = (recipe: { name: string; ingredientIds: string[] }) => {
     const params = new URLSearchParams({ name: recipe.name, ingredients: recipe.ingredientIds.join(",") })
-    navigate(`/archive?${params.toString()}`)
+    navigate(`/lab?${params.toString()}`)
+  }
+
+  const handleImportMenu = () => {
+    const scan = addScan({ venueId, date: new Date().toISOString().slice(0, 10), photos: [] })
+
+    const nameToId = new Map(ingredients.map((i) => [i.name.toLowerCase(), i.id]))
+    let newIngredients = 0
+    for (const seed of SEED_INGREDIENTS) {
+      const key = seed.name.toLowerCase()
+      if (nameToId.has(key)) continue
+      const created = addIngredient({
+        name: seed.name,
+        category: seed.category,
+        tags: seed.tags,
+        styles: seed.styles,
+        inStock: true,
+      })
+      nameToId.set(key, created.id)
+      newIngredients++
+    }
+
+    const existingRecipeNames = new Set(
+      recipes.filter((r) => r.venueId === venueId).map((r) => r.name.toLowerCase()),
+    )
+    let newRecipes = 0
+    for (const seed of SEED_EXPERIMENTS) {
+      if (existingRecipeNames.has(seed.name.toLowerCase())) continue
+      const ingredientIds = seed.ingredientNames
+        .map((n) => nameToId.get(n.toLowerCase()))
+        .filter((id): id is string => Boolean(id))
+
+      addRecipe({ name: seed.name, venueId, scanId: scan.id, ingredientIds })
+      newRecipes++
+    }
+
+    setImportStatus(
+      `Added ${newRecipes} recipe${newRecipes === 1 ? "" : "s"} and created ${newIngredients} new ingredient${newIngredients === 1 ? "" : "s"}.`,
+    )
   }
 
   // Aggregate purchase list across all scans
@@ -99,6 +140,23 @@ export default function VenueDetailPage() {
             .join(", ")}
         </div>
       )}
+
+      <section className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
+        <p className="mb-1 text-sm font-medium">Import Fiddler Cocktail Menu (2027)</p>
+        <p className="mb-3 text-xs text-[var(--cream-dim)]">
+          Adds a new scan to {venue.name} containing every recipe from the PDF, creating any
+          missing ingredients (tagged with flavor and style) along the way. Safe to run more than
+          once — matching recipe and ingredient names are skipped.
+        </p>
+        <button
+          type="button"
+          onClick={handleImportMenu}
+          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+        >
+          Import menu
+        </button>
+        {importStatus && <p className="mt-2 text-xs text-[var(--sage)]">{importStatus}</p>}
+      </section>
 
       <section className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
         <h2 className="mb-3 text-sm font-medium">New Scan</h2>
@@ -215,10 +273,10 @@ export default function VenueDetailPage() {
                       <div className="mt-2 flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => handleSendToArchive(recipe)}
+                          onClick={() => handleSendToLab(recipe)}
                           className="text-xs text-[var(--teal)] hover:underline"
                         >
-                          Send to Archive
+                          Send to Experiment Lab
                         </button>
                         <button
                           type="button"

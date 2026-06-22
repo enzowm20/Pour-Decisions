@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
+import { checkRecipe } from "../lib/recipeCheck"
 import SubstitutionManager from "../components/SubstitutionManager"
+import StatusBadge from "../components/StatusBadge"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
 const CAPS: Record<IngredientCategory, number> = {
@@ -40,13 +42,36 @@ function pickN<T>(list: T[], n: number, offset: number): T[] {
   return result
 }
 
+function signatureOf(ids: string[]) {
+  return [...new Set(ids)].sort().join(",")
+}
+
 export default function ExperimentLabPage() {
-  const { ingredients, experiments } = useData()
+  const { ingredients, experiments, recipes, substitutions } = useData()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
 
   const pairingGraph = useMemo(() => buildPairingGraph(experiments), [experiments])
   const provenGroups = useMemo(() => buildProvenGroups(experiments), [experiments])
+
+  // Every combination that already exists — as a logged experiment or on any
+  // venue's menu (yours or one you've scanned) — so suggestions stay genuinely
+  // new rather than re-proposing something already on file.
+  const knownSignatures = useMemo(() => {
+    const sigs = new Set<string>()
+    for (const e of experiments) sigs.add(signatureOf(e.ingredientIds))
+    for (const r of recipes) sigs.add(signatureOf(r.ingredientIds))
+    return sigs
+  }, [experiments, recipes])
+
+  const stagedName = searchParams.get("name")
+  const stagedIngredientIds = searchParams.get("ingredients")?.split(",").filter(Boolean) ?? []
+  const stagedRecipe =
+    stagedName && stagedIngredientIds.length > 0
+      ? { id: "staged", name: stagedName, venueId: null, scanId: null, ingredientIds: stagedIngredientIds }
+      : null
+  const stagedResult = stagedRecipe ? checkRecipe(stagedRecipe, ingredients, substitutions) : null
 
   function toggleTag(tag: FlavorTag) {
     setSelectedTags((prev) =>
@@ -79,7 +104,7 @@ export default function ExperimentLabPage() {
       isLearnedPair(pairingGraph, anchor.id, candidate.id)
 
     const MAX_COMBOS = 10
-    const MAX_ATTEMPTS = 60
+    const MAX_ATTEMPTS = 120 // higher than MAX_COMBOS since known combos get rejected and don't count
     const seenSignatures = new Set<string>()
     const result: Combo[] = []
 
@@ -105,9 +130,13 @@ export default function ExperimentLabPage() {
       const allIds = Object.values(bySlot)
         .flat()
         .map((i) => i.id)
-      const signature = [...allIds].sort().join(",")
+      const signature = signatureOf(allIds)
       if (seenSignatures.has(signature)) continue
       seenSignatures.add(signature)
+
+      // Skip anything that's already a known recipe — the point of this page
+      // is to surface combinations that don't exist yet.
+      if (knownSignatures.has(signature)) continue
 
       // Badge a whole proven group (2, 3, or more ingredients) rather than
       // tagging ingredients one at a time against the anchor — this is what
@@ -118,7 +147,7 @@ export default function ExperimentLabPage() {
     }
 
     return result
-  }, [ingredients, selectedTags, pairingGraph])
+  }, [ingredients, selectedTags, pairingGraph, provenGroups, knownSignatures])
 
   function tryCombo(combo: Combo) {
     const ingredientIds = Object.values(combo.bySlot)
@@ -132,16 +161,71 @@ export default function ExperimentLabPage() {
     navigate(`/archive?${params.toString()}`)
   }
 
+  function tryStaged() {
+    if (!stagedRecipe) return
+    const params = new URLSearchParams({
+      name: stagedRecipe.name,
+      ingredients: stagedRecipe.ingredientIds.join(","),
+    })
+    navigate(`/archive?${params.toString()}`)
+  }
+
   return (
     <div>
       <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
       <p className="mb-4 text-sm text-[var(--cream-dim)]">
         Select flavor tags to get combinations from your stocked ingredients. Ingredients combine
         if they share a flavor tag and either a cocktail style or a pairing you've already logged
-        as "worked" in the archive — so the more you log, the smarter this gets, even before
-        everything is style-tagged. Categories with no qualifying match are left out rather than
-        forced.
+        as "worked" in the archive. Anything that already matches an existing experiment or menu
+        item is skipped — these are meant to be genuinely new, not a recipe you already have on
+        file.
       </p>
+
+      {stagedRecipe && stagedResult && (
+        <div className="mb-6 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs text-[var(--cream-dim)]">Sent from a venue scan</p>
+              <p className="text-sm font-medium">{stagedRecipe.name}</p>
+            </div>
+            <StatusBadge status={stagedResult.status} />
+          </div>
+          <p className="mb-2 text-xs text-[var(--cream-dim)]">
+            {stagedResult.items.map((item, i) => (
+              <span key={i}>
+                {i > 0 ? ", " : ""}
+                {item.status === "have" ? (
+                  item.ingredient.name
+                ) : (
+                  <span className="text-[var(--cream-dim)] line-through">{item.ingredient.name}</span>
+                )}
+              </span>
+            ))}
+          </p>
+          {stagedResult.items.some((i) => i.status === "substitute") && (
+            <p className="mb-2 text-xs text-[var(--cream-dim)]">
+              {stagedResult.items
+                .filter((i) => i.status === "substitute")
+                .map((i) => `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`)
+                .join(". ")}
+              . Add more swaps below if something else is missing.
+            </p>
+          )}
+          {stagedResult.toPurchase.length > 0 && (
+            <p className="mb-2 text-xs text-[var(--cream-dim)]">
+              No substitute on file for {stagedResult.toPurchase.map((i) => i.name).join(", ")} —
+              add one below, or buy it to make this as written.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={tryStaged}
+            className="h-8 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90"
+          >
+            Try this
+          </button>
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap gap-2">
         {FLAVOR_TAGS.map((tag) => (
@@ -212,8 +296,8 @@ export default function ExperimentLabPage() {
         })}
         {selectedTags.length > 0 && combos.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">
-            No spirits in stock are tagged with these flavors yet. Go to the Stock page and add
-            flavor tags to your spirits.
+            No new combinations available yet — either nothing in stock is tagged with these
+            flavors, or every match already exists in your archive or a menu.
           </p>
         )}
       </div>

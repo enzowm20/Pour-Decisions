@@ -227,7 +227,6 @@ export default function ArchivePage() {
                       {exp.garnish ? `Garnish: ${exp.garnish}` : ""}
                     </p>
                   )}
-                  {exp.notes && <p className="mt-1 text-sm text-[var(--cream)]">{exp.notes}</p>}
                   <div className="mt-2 flex items-center gap-3">
                     {exp.outcome === "worked" && !exp.promotedToMenu && !menuRecipeNames.has(exp.name) && (
                       <button
