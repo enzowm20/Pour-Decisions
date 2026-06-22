@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
+import SubstitutionManager from "../components/SubstitutionManager"
 import {
   CATEGORY_LABELS,
   FLAVOR_TAGS,
@@ -14,15 +15,7 @@ import {
 const categories: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "other"]
 
 export default function StockPage() {
-  const {
-    ingredients,
-    addIngredient,
-    updateIngredient,
-    removeIngredient,
-    substitutions,
-    addSubstitution,
-    removeSubstitution,
-  } = useData()
+  const { ingredients, addIngredient, updateIngredient, removeIngredient } = useData()
 
   const [name, setName] = useState("")
   const [category, setCategory] = useState<IngredientCategory>("spirit")
@@ -32,10 +25,6 @@ export default function StockPage() {
 
   const [viewCategory, setViewCategory] = useState<IngredientCategory | "all">("all")
   const [editingStylesId, setEditingStylesId] = useState<string | null>(null)
-
-  const [subIngredientName, setSubIngredientName] = useState("")
-  const [subSubstituteName, setSubSubstituteName] = useState("")
-  const [subError, setSubError] = useState("")
 
   function toggleTag(tag: FlavorTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
@@ -68,26 +57,6 @@ export default function StockPage() {
     setTags([])
     setStyles([])
     setCostPerServing("")
-  }
-
-  function handleAddSubstitution(e: React.FormEvent) {
-    e.preventDefault()
-    const missing = subIngredientName.trim()
-    const substitute = subSubstituteName.trim()
-
-    if (!missing || !substitute) {
-      setSubError("Enter both a missing ingredient and a substitute.")
-      return
-    }
-    if (missing.toLowerCase() === substitute.toLowerCase()) {
-      setSubError("Enter two different ingredients.")
-      return
-    }
-
-    addSubstitution({ ingredientName: missing, substituteName: substitute })
-    setSubIngredientName("")
-    setSubSubstituteName("")
-    setSubError("")
   }
 
   const visibleIngredients = useMemo(
@@ -287,62 +256,7 @@ export default function StockPage() {
       </section>
 
       <section>
-        <h2 className="mb-1 text-base font-medium">Substitutions</h2>
-        <p className="mb-3 text-sm text-[var(--cream-dim)]">
-          When an ingredient is missing, the app checks this table for a known stand-in.
-        </p>
-
-        <datalist id="ingredient-names">
-          {byName(ingredients).map((i) => (
-            <option key={i.id} value={i.name} />
-          ))}
-        </datalist>
-
-        <form onSubmit={handleAddSubstitution} className="mb-2 flex flex-wrap items-end gap-2">
-          <input
-            list="ingredient-names"
-            className={`${inputClass} min-w-[160px]`}
-            placeholder="Missing ingredient..."
-            value={subIngredientName}
-            onChange={(e) => setSubIngredientName(e.target.value)}
-          />
-          <span className="text-sm text-[var(--cream-dim)]">use instead</span>
-          <input
-            list="ingredient-names"
-            className={`${inputClass} min-w-[160px]`}
-            placeholder="Substitute..."
-            value={subSubstituteName}
-            onChange={(e) => setSubSubstituteName(e.target.value)}
-          />
-          <button type="submit" className={buttonClass}>
-            Add rule
-          </button>
-        </form>
-
-        {subError && <p className="mb-4 text-xs text-[var(--berry)]">{subError}</p>}
-
-        <div className="divide-y divide-[var(--cream-dim)]/15 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)]">
-          {substitutions.length === 0 && (
-            <p className="p-4 text-sm text-[var(--cream-dim)]">No substitution rules yet.</p>
-          )}
-          {[...substitutions]
-            .sort((a, b) => a.ingredientName.localeCompare(b.ingredientName))
-            .map((sub) => (
-            <div key={sub.id} className="flex items-center justify-between p-3 text-sm">
-              <span>
-                {sub.ingredientName} →{" "}
-                <span className="font-medium">{sub.substituteName}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => removeSubstitution(sub.id)}
-                className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
+        <SubstitutionManager />
       </section>
     </div>
   )

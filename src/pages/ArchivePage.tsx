@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { fileToDataUrl } from "../lib/storage"
 import { byName } from "../lib/sort"
-import { SEED_EXPERIMENTS, SEED_INGREDIENTS } from "../lib/fiddlerImport"
 import IngredientPicker from "../components/IngredientPicker"
 import type { ExperimentOutcome, FlavorTag, GlassType } from "../types"
 import { FLAVOR_TAGS, GLASS_TYPES } from "../types"
@@ -15,19 +14,11 @@ const outcomeStyles: Record<ExperimentOutcome, string> = {
 }
 
 export default function ArchivePage() {
-  const {
-    ingredients,
-    addIngredient,
-    experiments,
-    addExperiment,
-    updateExperiment,
-    removeExperiment,
-    recipes,
-    addRecipe,
-  } = useData()
+  const { ingredients, experiments, addExperiment, updateExperiment, removeExperiment, recipes, addRecipe } =
+    useData()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [name, setName] = useState("")
+  const [name, setName] = useState(searchParams.get("name") ?? "")
   const [ingredientIds, setIngredientIds] = useState<string[]>(
     searchParams.get("ingredients")?.split(",").filter(Boolean) ?? [],
   )
@@ -39,54 +30,6 @@ export default function ArchivePage() {
   const [garnish, setGarnish] = useState("")
   const [notes, setNotes] = useState("")
   const [photos, setPhotos] = useState<string[]>([])
-  const [importStatus, setImportStatus] = useState("")
-
-  function importFiddlerMenu() {
-    const nameToId = new Map(ingredients.map((i) => [i.name.toLowerCase(), i.id]))
-    let newIngredients = 0
-
-    for (const seed of SEED_INGREDIENTS) {
-      const key = seed.name.toLowerCase()
-      if (nameToId.has(key)) continue
-      const created = addIngredient({
-        name: seed.name,
-        category: seed.category,
-        tags: seed.tags,
-        styles: seed.styles,
-        inStock: true,
-      })
-      nameToId.set(key, created.id)
-      newIngredients++
-    }
-
-    const existingExperimentNames = new Set(experiments.map((e) => e.name.toLowerCase()))
-    let newExperiments = 0
-
-    for (const seed of SEED_EXPERIMENTS) {
-      if (existingExperimentNames.has(seed.name.toLowerCase())) continue
-      const ingredientIds = seed.ingredientNames
-        .map((n) => nameToId.get(n.toLowerCase()))
-        .filter((id): id is string => Boolean(id))
-
-      addExperiment({
-        name: seed.name,
-        tags: seed.tags,
-        ingredientIds,
-        outcome: "worked",
-        glass: seed.glass,
-        garnish: seed.garnish,
-        notes: seed.notes,
-        photos: [],
-        date: new Date().toISOString().slice(0, 10),
-        promotedToMenu: false,
-      })
-      newExperiments++
-    }
-
-    setImportStatus(
-      `Imported ${newExperiments} recipe${newExperiments === 1 ? "" : "s"} and added ${newIngredients} new ingredient${newIngredients === 1 ? "" : "s"} from the Fiddler menu.`,
-    )
-  }
 
   function toggleTag(tag: FlavorTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
@@ -143,23 +86,6 @@ export default function ArchivePage() {
         <p className="text-sm text-[var(--cream-dim)]">
           Log what you tried, what worked, and keep it on file for next time.
         </p>
-      </div>
-
-      <div className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
-        <p className="mb-1 text-sm font-medium">Import Fiddler Cocktail Menu (2027)</p>
-        <p className="mb-3 text-xs text-[var(--cream-dim)]">
-          Adds every recipe from the PDF as a "worked" experiment, creating any missing
-          ingredients (tagged with flavor and style) along the way. Safe to run more than once —
-          existing ingredients and experiments with matching names are skipped.
-        </p>
-        <button
-          type="button"
-          onClick={importFiddlerMenu}
-          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
-        >
-          Import menu
-        </button>
-        {importStatus && <p className="mt-2 text-xs text-[var(--sage)]">{importStatus}</p>}
       </div>
 
       <form

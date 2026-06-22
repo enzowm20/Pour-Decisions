@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, useNavigate, Link } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { checkRecipe } from "../lib/recipeCheck"
 import { fileToDataUrl } from "../lib/storage"
@@ -9,6 +9,7 @@ import StatusBadge from "../components/StatusBadge"
 
 export default function VenueDetailPage() {
   const { venueId: routeVenueId } = useParams()
+  const navigate = useNavigate()
   const {
     venues,
     scans,
@@ -63,6 +64,11 @@ export default function VenueDetailPage() {
     })
     setRecipeName("")
     setRecipeIngredientIds([])
+  }
+
+  const handleSendToArchive = (recipe: { name: string; ingredientIds: string[] }) => {
+    const params = new URLSearchParams({ name: recipe.name, ingredients: recipe.ingredientIds.join(",") })
+    navigate(`/archive?${params.toString()}`)
   }
 
   // Aggregate purchase list across all scans
@@ -206,13 +212,22 @@ export default function VenueDetailPage() {
                           {result.toPurchase.map((i) => i.name).join(", ")} to make this
                         </p>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => removeRecipe(recipe.id)}
-                        className="mt-2 text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                      >
-                        Remove
-                      </button>
+                      <div className="mt-2 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleSendToArchive(recipe)}
+                          className="text-xs text-[var(--teal)] hover:underline"
+                        >
+                          Send to Archive
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeRecipe(recipe.id)}
+                          className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

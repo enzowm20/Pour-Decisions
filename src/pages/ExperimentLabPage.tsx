@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
+import SubstitutionManager from "../components/SubstitutionManager"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
 const CAPS: Record<IngredientCategory, number> = {
@@ -215,6 +216,10 @@ export default function ExperimentLabPage() {
             flavor tags to your spirits.
           </p>
         )}
+      </div>
+
+      <div className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+        <SubstitutionManager />
       </div>
     </div>
   )
