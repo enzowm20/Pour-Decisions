@@ -65,7 +65,7 @@ export default function Layout() {
           sign-out on the right. */}
       {!isHome && (
         <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--cream)]">
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
             <Link to="/">
               <img
                 src={LOGOS[theme]}
@@ -114,7 +114,7 @@ export default function Layout() {
         </header>
       )}
 
-      <main className="mx-auto max-w-4xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6">
         {/* Opaque panel so page content stays readable as the liquid level
             passes behind it — only the margins around this card reveal the
             draining background. */}
