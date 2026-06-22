@@ -7,6 +7,7 @@ import { checkRecipe } from "../lib/recipeCheck"
 import SubstitutionManager from "../components/SubstitutionManager"
 import FlaggedIngredients from "../components/FlaggedIngredients"
 import FlavorNeuralPicker from "../components/FlavorNeuralPicker"
+import RevealOnScroll from "../components/RevealOnScroll"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import bombayBottle from "../assets/bombay-bottle.webp"
@@ -282,7 +283,10 @@ export default function ExperimentLabPage() {
         {!isThinking && combos.map((combo, i) => {
           const presentCategories = DISPLAY_ORDER.filter((c) => (combo.bySlot[c] ?? []).length > 0)
           return (
-            <div key={i} className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
+            <RevealOnScroll
+              key={i}
+              className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
+            >
               <div className="mb-3 flex flex-wrap gap-4">
                 {presentCategories.map((category) => (
                   <div key={category}>
@@ -321,7 +325,7 @@ export default function ExperimentLabPage() {
                   Try this
                 </button>
               </div>
-            </div>
+            </RevealOnScroll>
           )
         })}
         {!isThinking && revealedTags.length > 0 && combos.length === 0 && (
