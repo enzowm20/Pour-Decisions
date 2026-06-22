@@ -7,9 +7,11 @@ import logoChambord from "../assets/logo-chambord.png"
 import logoBombay from "../assets/logo-bombay.png"
 import logoJager from "../assets/logo-jager.png"
 import logoGordons from "../assets/logo-gordons.png"
+import logoLimoncello from "../assets/logo-limoncello.png"
 
 const navItems = [
-  { to: "/", label: "Stock" },
+  { to: "/", label: "Home", end: true },
+  { to: "/stock", label: "Stock" },
   { to: "/venues", label: "Venue Scans" },
   { to: "/lab", label: "Experiment Lab" },
   { to: "/archive", label: "Archive" },
@@ -17,6 +19,7 @@ const navItems = [
 ]
 
 const LOGOS: Record<ThemeName, string> = {
+  limoncello: logoLimoncello,
   aperol: logoAperol,
   chambord: logoChambord,
   bombay: logoBombay,
@@ -54,6 +57,7 @@ export default function Layout() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.end}
                 className={({ isActive }) =>
                   `rounded-md px-3 py-1.5 text-sm ${
                     isActive

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { DataProvider } from "./context/DataContext"
 import Layout from "./components/Layout"
+import HomePage from "./pages/HomePage"
 import StockPage from "./pages/StockPage"
 import VenuesPage from "./pages/VenuesPage"
 import VenueDetailPage from "./pages/VenueDetailPage"
@@ -14,7 +15,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route path="/" element={<StockPage />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/stock" element={<StockPage />} />
             <Route path="/venues" element={<VenuesPage />} />
             <Route path="/venues/:venueId" element={<VenueDetailPage />} />
             <Route path="/lab" element={<ExperimentLabPage />} />

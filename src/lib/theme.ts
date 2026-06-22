@@ -1,11 +1,12 @@
-export type ThemeName = "aperol" | "chambord" | "bombay" | "jager" | "gordons"
+export type ThemeName = "limoncello" | "aperol" | "chambord" | "bombay" | "jager" | "gordons"
 
 export function themeForPath(pathname: string): ThemeName {
+  if (pathname.startsWith("/stock")) return "aperol"
   if (pathname.startsWith("/venues")) return "chambord"
   if (pathname.startsWith("/lab")) return "bombay"
   if (pathname.startsWith("/archive")) return "jager"
   if (pathname.startsWith("/menu")) return "gordons"
-  return "aperol"
+  return "limoncello"
 }
 
 // Shared per-layer shape (wavelength variant, scroll speed, vertical jitter) —
@@ -27,6 +28,7 @@ const LIQUID_COLORS: Record<ThemeName, string[]> = {
   bombay: ["#0B2A4A", "#123F6E", "#6FA8DC", "#1C5C9E", "#1768AD"],
   jager: ["#1A0E08", "#2E1810", "#6E3A1E", "#3F2012", "#2B160C"],
   gordons: ["#4A1228", "#7A1F45", "#F2C2D9", "#D9447D", "#E87FAE"],
+  limoncello: ["#8C6A00", "#B8920A", "#FFF6C2", "#F2C230", "#F7D117"],
 }
 
 export interface LiquidLayer {
