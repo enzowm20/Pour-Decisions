@@ -77,32 +77,51 @@ export default function Layout() {
               />
             </Link>
 
-            <div className="flex flex-wrap items-center gap-4">
-              <nav className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                {navGroups.map((group) => (
-                  <div key={group.label} className="flex flex-wrap items-center gap-1">
-                    <span className="text-[10px] uppercase tracking-wide text-[var(--surface)]/60">
-                      {group.label}
-                    </span>
-                    {group.items.map((item) => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={({ isActive }) =>
-                          `rounded-md px-2.5 py-1.5 text-sm ${
-                            isActive
-                              ? theme === "bombay"
-                                ? "bg-[var(--gold)] text-[var(--on-gold)]"
-                                : "bg-[var(--primary)] text-[var(--on-primary)]"
-                              : "text-[var(--surface)] hover:bg-[var(--cream-dim)]/30"
-                          }`
-                        }
+            <div className="flex items-center gap-4">
+              <nav className="flex items-center gap-1">
+                {navGroups.map((group) => {
+                  const isGroupActive = group.items.some((item) =>
+                    location.pathname.startsWith(item.to),
+                  )
+                  return (
+                    <div key={group.label} className="group relative">
+                      <button
+                        type="button"
+                        className={`rounded-md px-3 py-1.5 text-sm ${
+                          isGroupActive
+                            ? theme === "bombay"
+                              ? "bg-[var(--gold)] text-[var(--on-gold)]"
+                              : "bg-[var(--primary)] text-[var(--on-primary)]"
+                            : "text-[var(--surface)] hover:bg-[var(--cream-dim)]/30"
+                        }`}
                       >
-                        {item.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                ))}
+                        {group.label}
+                      </button>
+
+                      {/* CSS-only hover dropdown — no click needed, matches
+                          the request to reveal sub-pages on hover. */}
+                      <div className="invisible absolute left-0 top-full z-10 mt-1 min-w-[170px] rounded-md border border-[var(--cream-dim)]/20 bg-[var(--cream)] py-1 opacity-0 shadow-md transition group-hover:visible group-hover:opacity-100">
+                        {group.items.map((item) => (
+                          <NavLink
+                            key={item.to}
+                            to={item.to}
+                            className={({ isActive }) =>
+                              `block px-3 py-2 text-sm ${
+                                isActive
+                                  ? theme === "bombay"
+                                    ? "bg-[var(--gold)] text-[var(--on-gold)]"
+                                    : "bg-[var(--primary)] text-[var(--on-primary)]"
+                                  : "text-[var(--surface)] hover:bg-[var(--cream-dim)]/30"
+                              }`
+                            }
+                          >
+                            {item.label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </nav>
 
               <button
