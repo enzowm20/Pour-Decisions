@@ -19,6 +19,7 @@ interface DataContextValue {
 
   scans: Scan[]
   addScan: (data: Omit<Scan, "id">) => Scan
+  updateScan: (id: string, data: Partial<Scan>) => void
   removeScan: (id: string) => void
 
   recipes: Recipe[]
@@ -80,6 +81,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setScans((prev) => [...prev, scan])
       return scan
     },
+    updateScan: (id, data) =>
+      setScans((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s))),
     removeScan: (id) => {
       setScans((prev) => prev.filter((s) => s.id !== id))
       setRecipes((prev) => prev.filter((r) => r.scanId !== id))

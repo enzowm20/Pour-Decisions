@@ -84,7 +84,8 @@ export interface Venue {
 export interface Scan {
   id: string
   venueId: string
-  date: string
+  date: string // date this scan was logged into the system
+  photoDate: string // date the menu photo was actually taken/sourced
   photos: string[]
 }
 
