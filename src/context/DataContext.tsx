@@ -32,11 +32,10 @@ interface DataContextValue {
   updateExperiment: (id: string, data: Partial<Experiment>) => void
   removeExperiment: (id: string) => void
 
-  // Names dismissed from the "flagged from venue scans" list without adding
-  // a substitution — i.e. "we just don't stock this, stop asking."
-  ignoredFlaggedIngredients: string[]
-  ignoreFlaggedIngredient: (name: string) => void
-  unignoreFlaggedIngredient: (name: string) => void
+  // Permanently strips a flagged name from every recipe's
+  // missingIngredientNames — used to delete a flagged entry outright rather
+  // than just hiding it.
+  deleteFlaggedIngredientName: (name: string) => void
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -51,10 +50,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [scans, setScans] = useLocalStorageState<Scan[]>("scans", [])
   const [recipes, setRecipes] = useLocalStorageState<Recipe[]>("recipes", [])
   const [experiments, setExperiments] = useLocalStorageState<Experiment[]>("experiments", [])
-  const [ignoredFlaggedIngredients, setIgnoredFlaggedIngredients] = useLocalStorageState<string[]>(
-    "ignoredFlaggedIngredients",
-    [],
-  )
 
   const value: DataContextValue = {
     ingredients,
@@ -118,13 +113,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setExperiments((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } : e))),
     removeExperiment: (id) => setExperiments((prev) => prev.filter((e) => e.id !== id)),
 
-    ignoredFlaggedIngredients,
-    ignoreFlaggedIngredient: (name) =>
-      setIgnoredFlaggedIngredients((prev) =>
-        prev.some((n) => n.toLowerCase() === name.toLowerCase()) ? prev : [...prev, name],
-      ),
-    unignoreFlaggedIngredient: (name) =>
-      setIgnoredFlaggedIngredients((prev) => prev.filter((n) => n.toLowerCase() !== name.toLowerCase())),
+    deleteFlaggedIngredientName: (name) => {
+      const lower = name.toLowerCase()
+      setRecipes((prev) =>
+        prev.map((r) => {
+          if (!r.missingIngredientNames?.some((n) => n.toLowerCase() === lower)) return r
+          const remaining = r.missingIngredientNames.filter((n) => n.toLowerCase() !== lower)
+          return { ...r, missingIngredientNames: remaining.length > 0 ? remaining : undefined }
+        }),
+      )
+    },
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
