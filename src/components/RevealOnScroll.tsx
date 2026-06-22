@@ -18,6 +18,21 @@ export default function RevealOnScroll({
   useEffect(() => {
     const el = ref.current
     if (!el) return
+
+    // Anything already on screen the instant this mounts (e.g. opening a
+    // tab) reveals immediately via a direct, synchronous check — this is
+    // what "fade in on page open" actually depends on, since waiting on the
+    // observer's first callback isn't guaranteed to land before paint, and a
+    // tall wrapped section (a long ingredient list, say) may never show
+    // enough of itself in the viewport at once to clear a ratio-based
+    // threshold at all.
+    const rect = el.getBoundingClientRect()
+    if (rect.bottom > 0 && rect.top < window.innerHeight) {
+      setVisible(true)
+      return
+    }
+
+    // Anything below the fold reveals the normal way, as it scrolls in.
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -25,7 +40,7 @@ export default function RevealOnScroll({
           observer.disconnect()
         }
       },
-      { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
+      { threshold: 0, rootMargin: "0px 0px -40px 0px" },
     )
     observer.observe(el)
     return () => observer.disconnect()
