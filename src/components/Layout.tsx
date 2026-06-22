@@ -1,5 +1,5 @@
 import { useLayoutEffect } from "react"
-import { NavLink, Outlet, useLocation } from "react-router-dom"
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
 import DrainingBackground from "./DrainingBackground"
 import { themeForPath, type ThemeName } from "../lib/theme"
 import logoAperol from "../assets/logo-aperol.png"
@@ -46,11 +46,13 @@ export default function Layout() {
       {!isHome && (
         <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--cream)]">
           <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3">
-            <img
-              src={LOGOS[theme]}
-              alt="Pour Decisions — match, mix, sip"
-              className="h-24 w-auto sm:h-36"
-            />
+            <Link to="/">
+              <img
+                src={LOGOS[theme]}
+                alt="Pour Decisions — match, mix, sip"
+                className="h-24 w-auto sm:h-36"
+              />
+            </Link>
 
             <nav className="flex flex-wrap justify-end gap-1">
               {navItems.map((item) => (
