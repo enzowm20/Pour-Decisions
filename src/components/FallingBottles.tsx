@@ -6,17 +6,17 @@ import bottleImg from "../assets/limoncello-bottle.webp"
 // it passes the bottom), with its own horizontal wobble and tumble speed so
 // the set reads as erratic rather than a single repeating pattern.
 const BOTTLES = [
-  { left: 6, fallSpeed: 0.5, wobbleAmp: 14, wobblePeriod: 240, spinSpeed: 0.22, phase: 0, size: 36, loopOffset: 0 },
-  { left: 18, fallSpeed: 0.8, wobbleAmp: 8, wobblePeriod: 160, spinSpeed: -0.3, phase: 1.1, size: 26, loopOffset: 300 },
-  { left: 30, fallSpeed: 0.35, wobbleAmp: 20, wobblePeriod: 320, spinSpeed: 0.15, phase: 2.4, size: 42, loopOffset: 650 },
-  { left: 70, fallSpeed: 0.65, wobbleAmp: 10, wobblePeriod: 190, spinSpeed: -0.2, phase: 3.3, size: 30, loopOffset: 120 },
-  { left: 82, fallSpeed: 0.42, wobbleAmp: 16, wobblePeriod: 280, spinSpeed: 0.28, phase: 4.6, size: 38, loopOffset: 480 },
-  { left: 92, fallSpeed: 0.9, wobbleAmp: 6, wobblePeriod: 140, spinSpeed: -0.35, phase: 5.2, size: 24, loopOffset: 800 },
-  { left: 50, fallSpeed: 0.55, wobbleAmp: 18, wobblePeriod: 260, spinSpeed: 0.18, phase: 0.7, size: 32, loopOffset: 950 },
-  { left: 60, fallSpeed: 0.7, wobbleAmp: 9, wobblePeriod: 170, spinSpeed: -0.25, phase: 1.8, size: 28, loopOffset: 200 },
+  { left: 4, fallSpeed: 0.5, wobbleAmp: 14, wobblePeriod: 240, spinSpeed: 0.22, phase: 0, size: 52, loopOffset: 0 },
+  { left: 16, fallSpeed: 0.8, wobbleAmp: 8, wobblePeriod: 160, spinSpeed: -0.3, phase: 1.1, size: 38, loopOffset: 130 },
+  { left: 28, fallSpeed: 0.35, wobbleAmp: 20, wobblePeriod: 320, spinSpeed: 0.15, phase: 2.4, size: 60, loopOffset: 260 },
+  { left: 40, fallSpeed: 0.65, wobbleAmp: 10, wobblePeriod: 190, spinSpeed: -0.2, phase: 3.3, size: 44, loopOffset: 60 },
+  { left: 52, fallSpeed: 0.42, wobbleAmp: 16, wobblePeriod: 280, spinSpeed: 0.28, phase: 4.6, size: 54, loopOffset: 190 },
+  { left: 64, fallSpeed: 0.9, wobbleAmp: 6, wobblePeriod: 140, spinSpeed: -0.35, phase: 5.2, size: 34, loopOffset: 320 },
+  { left: 76, fallSpeed: 0.55, wobbleAmp: 18, wobblePeriod: 260, spinSpeed: 0.18, phase: 0.7, size: 46, loopOffset: 95 },
+  { left: 88, fallSpeed: 0.7, wobbleAmp: 9, wobblePeriod: 170, spinSpeed: -0.25, phase: 1.8, size: 40, loopOffset: 225 },
 ]
 
-const LOOP_HEIGHT_VH = 140 // wrap distance, in vh, before a bottle resets to the top
+const LOOP_HEIGHT_VH = 75 // wrap distance, in vh — shorter than before so bottles recur more densely
 const ASPECT = 1280 / 1024 // source image height / width
 
 export default function FallingBottles() {
@@ -35,7 +35,11 @@ export default function FallingBottles() {
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 0,
+        // Negative z-index keeps this behind all normal in-flow content
+        // (headings, cards) — a fixed element with z-index 0 or higher
+        // paints above static content regardless of DOM order, which is
+        // what put bottles in front of the text before.
+        zIndex: -1,
         overflow: "hidden",
         pointerEvents: "none",
         opacity: intensity,
