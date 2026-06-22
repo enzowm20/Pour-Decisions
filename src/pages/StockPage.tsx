@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
+import { lookupStyles } from "../lib/styleLookup"
 import SubstitutionManager from "../components/SubstitutionManager"
 import {
   CATEGORY_LABELS,
@@ -25,6 +26,30 @@ export default function StockPage() {
 
   const [viewCategory, setViewCategory] = useState<IngredientCategory | "all">("all")
   const [editingStylesId, setEditingStylesId] = useState<string | null>(null)
+  const [autoFillStatus, setAutoFillStatus] = useState("")
+
+  function handleAutoFillStyles() {
+    const unmatched: string[] = []
+    let filled = 0
+
+    for (const ing of ingredients) {
+      if ((ing.styles ?? []).length > 0) continue
+      const match = lookupStyles(ing.name)
+      if (match) {
+        updateIngredient(ing.id, {
+          styles: match.styles,
+          tags: ing.tags.length > 0 ? ing.tags : match.tags,
+        })
+        filled++
+      } else {
+        unmatched.push(ing.name)
+      }
+    }
+
+    const unmatchedNote =
+      unmatched.length > 0 ? ` Couldn't confidently match: ${unmatched.join(", ")} — tag these by hand.` : ""
+    setAutoFillStatus(`Filled in style for ${filled} ingredient${filled === 1 ? "" : "s"}.${unmatchedNote}`)
+  }
 
   function toggleTag(tag: FlavorTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
@@ -149,22 +174,32 @@ export default function StockPage() {
           ))}
         </div>
 
-        <div className="mb-3 flex flex-wrap gap-2">
-          {(["all", ...categories] as const).map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setViewCategory(c)}
-              className={`rounded-full px-3 py-1 text-xs ${
-                viewCategory === c
-                  ? "bg-[var(--teal)] text-[var(--on-teal)]"
-                  : "bg-[var(--surface-raised)] text-[var(--cream-dim)]"
-              }`}
-            >
-              {c === "all" ? "All" : CATEGORY_LABELS[c]}
-            </button>
-          ))}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {(["all", ...categories] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setViewCategory(c)}
+                className={`rounded-full px-3 py-1 text-xs ${
+                  viewCategory === c
+                    ? "bg-[var(--teal)] text-[var(--on-teal)]"
+                    : "bg-[var(--surface-raised)] text-[var(--cream-dim)]"
+                }`}
+              >
+                {c === "all" ? "All" : CATEGORY_LABELS[c]}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handleAutoFillStyles}
+            className="rounded-md border border-[var(--teal)]/40 px-2.5 py-1 text-xs text-[var(--teal)] hover:bg-[var(--teal)]/10"
+          >
+            Auto-fill missing styles
+          </button>
         </div>
+        {autoFillStatus && <p className="mb-3 text-xs text-[var(--sage)]">{autoFillStatus}</p>}
 
         <div className="divide-y divide-[var(--cream-dim)]/15 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)]">
           {visibleIngredients.length === 0 && (
