@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
+import FallingBottles from "../components/FallingBottles"
 
 const TABS = [
   {
@@ -31,7 +32,9 @@ const TABS = [
 
 export default function HomePage() {
   return (
-    <div className="space-y-10 text-center">
+    <div className="relative space-y-10 text-center">
+      <FallingBottles />
+
       <div className="flex justify-center pt-2">
         <img
           src={logoLimoncelloHero}
