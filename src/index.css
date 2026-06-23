@@ -58,7 +58,14 @@ body {
 /* The "thinking" core — possessed water: the outline itself morphs between
    irregular shapes (SMIL animate on "d"), not just squashing ellipses, so it
    reads as actual liquid being held together by will rather than glowing
-   shapes pulsing. A soft blurred glow body sits behind the glossy one. */
+   shapes pulsing. A soft blurred glow body sits behind the glossy one. The
+   whole thing lives in a scaled wrapper so growing bigger is a smooth CSS
+   transition layered on top of a morph loop that never restarts. */
+.water-blob-scale {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .water-blob-glow {
   filter: blur(10px);
 }
@@ -83,27 +90,25 @@ body {
   animation: water-droplet-fling ease-out infinite;
 }
 
-/* Liquid connections: a glossy blue/aqua gradient stream with a thin white
-   sheen down the middle, rather than a drawn line or a multicolor beam. */
-.liquid-strand {
-  fill: none;
-  stroke-linecap: round;
-  filter: blur(1.5px);
+/* Liquid connections: a filled, morphing river body (not a drawn line) in
+   blue/aqua, with a thin white sheen traced down the middle for gloss. */
+.liquid-river {
+  filter: blur(1.2px);
 }
-@keyframes liquid-flow-breathe {
-  0%, 100% { opacity: 0.55; stroke-width: 4.5; }
-  40% { opacity: 0.9; stroke-width: 6.5; }
-  70% { opacity: 0.65; stroke-width: 5.5; }
+@keyframes liquid-river-breathe {
+  0%, 100% { opacity: 0.7; }
+  45% { opacity: 0.95; }
+  75% { opacity: 0.8; }
 }
-.liquid-strand {
-  animation: liquid-flow-breathe 3.4s ease-in-out infinite;
+.liquid-river {
+  animation: liquid-river-breathe 3.4s ease-in-out infinite;
 }
 
 .liquid-sheen {
   fill: none;
   stroke-linecap: round;
   stroke-width: 1.2;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .liquid-droplet {

@@ -78,10 +78,17 @@ const WATER_BLUE = "#1f8fd6"
 const WATER_AQUA = "#6fe3ff"
 const WATER_SHINE = "#e6fbff"
 
-// A smooth cubic ribbon with two independently-randomized control points —
-// not mirrored around the midpoint, so it reads as an asymmetric flowing
-// curve rather than a clean, perfect arc.
-function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
+interface CubicCurve {
+  p0: { x: number; y: number }
+  p1: { x: number; y: number }
+  p2: { x: number; y: number }
+  p3: { x: number; y: number }
+}
+
+// Two independently-randomized control points — not mirrored around the
+// midpoint, so the curve reads as an asymmetric flowing shape rather than a
+// clean, perfect arc.
+function cubicControls(x1: number, y1: number, x2: number, y2: number, seed: number): CubicCurve {
   const dx = x2 - x1
   const dy = y2 - y1
   const len = Math.hypot(dx, dy) || 1
@@ -93,12 +100,96 @@ function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: numb
   const bow1 = (pseudoRandom(seed, 3) - 0.5) * 80
   const bow2 = (pseudoRandom(seed, 4) - 0.5) * 80
 
-  const c1x = x1 + dx * t1 + nx * bow1
-  const c1y = y1 + dy * t1 + ny * bow1
-  const c2x = x1 + dx * t2 + nx * bow2
-  const c2y = y1 + dy * t2 + ny * bow2
+  return {
+    p0: { x: x1, y: y1 },
+    p1: { x: x1 + dx * t1 + nx * bow1, y: y1 + dy * t1 + ny * bow1 },
+    p2: { x: x1 + dx * t2 + nx * bow2, y: y1 + dy * t2 + ny * bow2 },
+    p3: { x: x2, y: y2 },
+  }
+}
 
-  return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`
+function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
+  const c = cubicControls(x1, y1, x2, y2, seed)
+  return `M ${c.p0.x} ${c.p0.y} C ${c.p1.x} ${c.p1.y}, ${c.p2.x} ${c.p2.y}, ${c.p3.x} ${c.p3.y}`
+}
+
+function cubicPoint(c: CubicCurve, t: number) {
+  const mt = 1 - t
+  return {
+    x: mt * mt * mt * c.p0.x + 3 * mt * mt * t * c.p1.x + 3 * mt * t * t * c.p2.x + t * t * t * c.p3.x,
+    y: mt * mt * mt * c.p0.y + 3 * mt * mt * t * c.p1.y + 3 * mt * t * t * c.p2.y + t * t * t * c.p3.y,
+  }
+}
+
+function cubicTangent(c: CubicCurve, t: number) {
+  const mt = 1 - t
+  return {
+    x: 3 * mt * mt * (c.p1.x - c.p0.x) + 6 * mt * t * (c.p2.x - c.p1.x) + 3 * t * t * (c.p3.x - c.p2.x),
+    y: 3 * mt * mt * (c.p1.y - c.p0.y) + 6 * mt * t * (c.p2.y - c.p1.y) + 3 * t * t * (c.p3.y - c.p2.y),
+  }
+}
+
+// Builds a closed, organic outline through an ordered ring of points, joined
+// with smooth curves through their midpoints — no straight edges or sharp
+// corners anywhere, just a watery silhouette.
+function smoothClosedPath(points: { x: number; y: number }[]) {
+  const n = points.length
+  const start = { x: (points[0].x + points[n - 1].x) / 2, y: (points[0].y + points[n - 1].y) / 2 }
+  let d = `M ${start.x} ${start.y}`
+  for (let i = 0; i < n; i++) {
+    const p = points[i]
+    const next = points[(i + 1) % n]
+    const mid = { x: (p.x + next.x) / 2, y: (p.y + next.y) / 2 }
+    d += ` Q ${p.x} ${p.y} ${mid.x} ${mid.y}`
+  }
+  return `${d} Z`
+}
+
+// An irregular blob outline: a variable number of points scattered around a
+// circle at uneven radii, with the whole circle's center drifting off-axis
+// per variant — so successive morph frames don't just breathe symmetrically,
+// they actually slosh, and different frames can have entirely different
+// silhouette complexity rather than the same N points moving in place.
+function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: number) {
+  const points = 7 + Math.floor(pseudoRandom(seed, variant * 53) * 5)
+  const driftAngle = pseudoRandom(seed, variant * 61) * Math.PI * 2
+  const driftMag = baseR * 0.2 * pseudoRandom(seed, variant * 71)
+  const ccx = cx + Math.cos(driftAngle) * driftMag
+  const ccy = cy + Math.sin(driftAngle) * driftMag
+
+  const pts = []
+  for (let i = 0; i < points; i++) {
+    const angle = (i / points) * Math.PI * 2
+    const wobble = 0.42 + pseudoRandom(seed, variant * 97 + i * 7) * 1.1
+    const r = baseR * wobble
+    pts.push({ x: ccx + r * Math.cos(angle), y: ccy + r * Math.sin(angle) })
+  }
+  return smoothClosedPath(pts)
+}
+
+// A filled river/blob shape running along a curve between two points,
+// tapered near both ends but bulging and pinching erratically in between —
+// reads as an elongated body of liquid flowing from one point to the other,
+// not a drawn line.
+function riverOutline(x1: number, y1: number, x2: number, y2: number, seed: number, variant: number, maxWidth: number) {
+  const c = cubicControls(x1, y1, x2, y2, seed)
+  const samples = 10
+  const left: { x: number; y: number }[] = []
+  const right: { x: number; y: number }[] = []
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples
+    const pt = cubicPoint(c, t)
+    const tan = cubicTangent(c, t)
+    const tlen = Math.hypot(tan.x, tan.y) || 1
+    const nx = -tan.y / tlen
+    const ny = tan.x / tlen
+    const envelope = 0.2 + 0.8 * Math.sin(Math.PI * t)
+    const jitter = 0.6 + pseudoRandom(seed + variant * 131, i * 17) * 0.7
+    const width = maxWidth * envelope * jitter
+    left.push({ x: pt.x + nx * (width / 2), y: pt.y + ny * (width / 2) })
+    right.push({ x: pt.x - nx * (width / 2), y: pt.y - ny * (width / 2) })
+  }
+  return smoothClosedPath([...left, ...right.reverse()])
 }
 
 // A few small droplets flung off a point along its outward normal, fading
@@ -136,11 +227,17 @@ function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx:
   )
 }
 
-// A liquid tendril between two points: a glossy blue/aqua gradient stream
-// with a thin white sheen down the middle and droplets springing off
-// partway along — reads as water still being pulled/held taut, not a beam.
+// A liquid river between two points: a filled, organically morphing body
+// (not a stroked line) with a thin glossy centerline and a droplet of light
+// sliding along it — reads as a taut, flowing body of water joining the
+// blob to whatever it's linked to.
 function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
-  const d = curveBetween(from.x, from.y, to.x, to.y, seed)
+  const centerline = curveBetween(from.x, from.y, to.x, to.y, seed)
+  const variants = useMemo(
+    () => [0, 1, 2].map((v) => riverOutline(from.x, from.y, to.x, to.y, seed, v, 17)),
+    [from.x, from.y, to.x, to.y, seed],
+  )
+  const values = `${variants.join(";")};${variants[0]}`
   const gradId = `liquid-grad-${seed}`
   const mx = (from.x + to.x) / 2
   const my = (from.y + to.y) / 2
@@ -149,7 +246,7 @@ function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
   const len = Math.hypot(dx, dy) || 1
 
   return (
-    <g style={{ animationDelay: `${pseudoRandom(seed, 40) * 2.5}s` }}>
+    <g>
       <defs>
         <linearGradient id={gradId} x1={from.x} y1={from.y} x2={to.x} y2={to.y} gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor={WATER_BLUE} />
@@ -157,19 +254,16 @@ function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
           <stop offset="100%" stopColor={WATER_BLUE} />
         </linearGradient>
       </defs>
-      <path
-        d={d}
-        stroke={`url(#${gradId})`}
-        className="liquid-strand"
-        style={{ animationDelay: `${pseudoRandom(seed, 51) * 2}s` }}
-      />
-      <path d={d} stroke={WATER_SHINE} className="liquid-sheen" />
+      <path d={variants[0]} fill={`url(#${gradId})`} className="liquid-river">
+        <animate attributeName="d" values={values} dur={`${4.2 + pseudoRandom(seed, 80) * 2.2}s`} repeatCount="indefinite" />
+      </path>
+      <path d={centerline} stroke={WATER_SHINE} className="liquid-sheen" />
       <ellipse rx={3.6} ry={1.8} fill={WATER_SHINE} className="liquid-droplet">
         <animateMotion
           dur={`${2.6 + pseudoRandom(seed, 60) * 1.8}s`}
           begin={`${pseudoRandom(seed, 70) * 2}s`}
           repeatCount="indefinite"
-          path={d}
+          path={centerline}
           rotate="auto"
         />
       </ellipse>
@@ -178,63 +272,44 @@ function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
   )
 }
 
-// A closed, irregular blob outline — N points scattered around a circle at
-// uneven radii, joined with smooth curves through their midpoints so the
-// outline has no straight edges or corners, just an organic watery shape.
-function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: number, points = 9) {
-  const pts: { x: number; y: number }[] = []
-  for (let i = 0; i < points; i++) {
-    const angle = (i / points) * Math.PI * 2
-    const wobble = 0.6 + pseudoRandom(seed, variant * 97 + i * 7) * 0.75
-    const r = baseR * wobble
-    pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) })
-  }
-  const start = { x: (pts[0].x + pts[points - 1].x) / 2, y: (pts[0].y + pts[points - 1].y) / 2 }
-  let d = `M ${start.x} ${start.y}`
-  for (let i = 0; i < points; i++) {
-    const p = pts[i]
-    const next = pts[(i + 1) % points]
-    const mid = { x: (p.x + next.x) / 2, y: (p.y + next.y) / 2 }
-    d += ` Q ${p.x} ${p.y} ${mid.x} ${mid.y}`
-  }
-  return `${d} Z`
-}
-
-// The "thinking" core — possessed water: a closed organic outline that
-// actually morphs between irregular shapes (not squashing ellipses), with a
-// brighter inner body and a glossy highlight, plus droplets springing off
-// its surface as it churns.
-function WaterBlob({ cx, cy, baseR, seed, active }: { cx: number; cy: number; baseR: number; seed: number; active: boolean }) {
-  const variants = useMemo(
-    () => [0, 1, 2, 3].map((v) => blobPath(cx, cy, baseR, seed, v)),
-    [cx, cy, baseR, seed],
-  )
+// The "thinking" core — possessed water: an outline that morphs between
+// irregular, asymmetric shapes (SMIL on "d", at a fixed reference size, so
+// the morph loop itself never restarts), wrapped in a separate group whose
+// CSS-transitioned scale is the only thing that changes when the blob grows
+// — so swelling reads as one continuous body filling out, not the same
+// animation replayed bigger.
+function WaterBlob({ cx, cy, radius, seed, active }: { cx: number; cy: number; radius: number; seed: number; active: boolean }) {
+  const REF_R = 20
+  const variants = useMemo(() => [0, 1, 2, 3].map((v) => blobPath(0, 0, REF_R, seed, v)), [seed])
   const values = `${variants.join(";")};${variants[0]}`
   const gradId = `water-body-${seed}`
+  const scale = radius / REF_R
 
   return (
-    <g>
-      <defs>
-        <radialGradient id={gradId} cx="35%" cy="30%" r="75%">
-          <stop offset="0%" stopColor={WATER_SHINE} stopOpacity={0.9} />
-          <stop offset="35%" stopColor={WATER_AQUA} stopOpacity={0.85} />
-          <stop offset="100%" stopColor={WATER_DEEP} stopOpacity={0.9} />
-        </radialGradient>
-      </defs>
-      <path d={variants[0]} fill={WATER_DEEP} opacity={active ? 0.35 : 0.18} className="water-blob-glow">
-        <animate attributeName="d" values={values} dur="7s" repeatCount="indefinite" />
-      </path>
-      <path d={variants[0]} fill={`url(#${gradId})`} className="water-blob-body">
-        <animate attributeName="d" values={values} dur="5.5s" repeatCount="indefinite" />
-      </path>
+    <g transform={`translate(${cx} ${cy})`}>
+      <g className="water-blob-scale" style={{ transform: `scale(${scale})` } as React.CSSProperties}>
+        <defs>
+          <radialGradient id={gradId} cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor={WATER_SHINE} stopOpacity={0.9} />
+            <stop offset="35%" stopColor={WATER_AQUA} stopOpacity={0.85} />
+            <stop offset="100%" stopColor={WATER_DEEP} stopOpacity={0.9} />
+          </radialGradient>
+        </defs>
+        <path d={variants[0]} fill={WATER_DEEP} opacity={active ? 0.35 : 0.18} className="water-blob-glow">
+          <animate attributeName="d" values={values} dur="7s" repeatCount="indefinite" />
+        </path>
+        <path d={variants[0]} fill={`url(#${gradId})`} className="water-blob-body">
+          <animate attributeName="d" values={values} dur="5.5s" repeatCount="indefinite" />
+        </path>
+      </g>
       {[0, 1, 2].map((i) => {
         const angle = pseudoRandom(seed, i * 31) * Math.PI * 2
-        const r = baseR * (0.8 + pseudoRandom(seed, i * 41) * 0.3)
+        const r = radius * (0.8 + pseudoRandom(seed, i * 41) * 0.3)
         return (
           <Droplets
             key={i}
-            x={cx + r * Math.cos(angle)}
-            y={cy + r * Math.sin(angle)}
+            x={r * Math.cos(angle)}
+            y={r * Math.sin(angle)}
             nx={Math.cos(angle)}
             ny={Math.sin(angle)}
             seed={seed + i * 23}
@@ -372,7 +447,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
             )
           })()}
 
-        <WaterBlob cx={CENTER} cy={CENTER} baseR={blobRadius} seed={7} active={hasSelection} />
+        <WaterBlob cx={CENTER} cy={CENTER} radius={blobRadius} seed={7} active={hasSelection} />
       </svg>
 
       {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {
