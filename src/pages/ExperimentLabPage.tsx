@@ -60,6 +60,7 @@ export default function ExperimentLabPage() {
   const [revealedTags, setRevealedTags] = useState<FlavorTag[]>([])
   const [isThinking, setIsThinking] = useState(false)
   const thinkingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showAllQueued, setShowAllQueued] = useState(false)
 
   // Gimmick: don't reveal suggestions the instant a tag is picked — let the
   // neural picker "think" for a random 5-10s stretch first, like it's
@@ -221,72 +222,6 @@ export default function ExperimentLabPage() {
         </p>
       </RevealOnScroll>
 
-      {queuedResults.length > 0 && (
-        <div className="mb-6">
-          <p className="mb-1 text-sm font-medium">Sent from venue scans ({queuedResults.length})</p>
-          <p className="mb-3 text-xs text-[var(--cream-dim)]">
-            Recipes you sent over from a venue scan, waiting here for you to review whenever you
-            get to it.
-          </p>
-          <div className="space-y-3">
-            {queuedResults.map(({ item, result }) => (
-              <div
-                key={item.id}
-                className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
-              >
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium">{item.name}</p>
-                  <StatusBadge status={result.status} />
-                </div>
-                <p className="mb-2 text-xs text-[var(--cream-dim)]">
-                  {result.items.map((i, idx) => (
-                    <span key={idx}>
-                      {idx > 0 ? ", " : ""}
-                      {i.status === "have" ? (
-                        i.ingredient.name
-                      ) : (
-                        <span className="text-[var(--cream-dim)] line-through">{i.ingredient.name}</span>
-                      )}
-                    </span>
-                  ))}
-                </p>
-                {result.items.some((i) => i.status === "substitute") && (
-                  <p className="mb-2 text-xs text-[var(--cream-dim)]">
-                    {result.items
-                      .filter((i) => i.status === "substitute")
-                      .map((i) => `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`)
-                      .join(". ")}
-                    . Add more swaps below if something else is missing.
-                  </p>
-                )}
-                {result.toPurchase.length > 0 && (
-                  <p className="mb-2 text-xs text-[var(--cream-dim)]">
-                    No substitute on file for {result.toPurchase.map((i) => i.name).join(", ")} —
-                    add one below, or buy it to make this as written.
-                  </p>
-                )}
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => tryQueued(item)}
-                    className="h-8 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90"
-                  >
-                    Try this
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeFromLabQueue(item.id)}
-                    className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <RevealOnScroll delay={100}>
         <FlavorNeuralPicker selectedTags={selectedTags} onToggle={toggleTag} />
       </RevealOnScroll>
@@ -366,6 +301,82 @@ export default function ExperimentLabPage() {
 
       <RevealOnScroll className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
         <SubstitutionManager />
+
+        {queuedResults.length > 0 && (
+          <div className="mt-6">
+            <p className="mb-1 text-sm font-medium">Venue Scan Cocktails ({queuedResults.length})</p>
+            <p className="mb-3 text-xs text-[var(--cream-dim)]">
+              Recipes you sent over from a venue scan, waiting here for you to review whenever you
+              get to it.
+            </p>
+            <div className="space-y-3">
+              {queuedResults.slice(0, showAllQueued ? undefined : 1).map(({ item, result }) => (
+                <RevealOnScroll
+                  key={item.id}
+                  className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
+                >
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium">{item.name}</p>
+                    <StatusBadge status={result.status} />
+                  </div>
+                  <p className="mb-2 text-xs text-[var(--cream-dim)]">
+                    {result.items.map((i, idx) => (
+                      <span key={idx}>
+                        {idx > 0 ? ", " : ""}
+                        {i.status === "have" ? (
+                          i.ingredient.name
+                        ) : (
+                          <span className="text-[var(--cream-dim)] line-through">{i.ingredient.name}</span>
+                        )}
+                      </span>
+                    ))}
+                  </p>
+                  {result.items.some((i) => i.status === "substitute") && (
+                    <p className="mb-2 text-xs text-[var(--cream-dim)]">
+                      {result.items
+                        .filter((i) => i.status === "substitute")
+                        .map((i) => `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`)
+                        .join(". ")}
+                      . Add more swaps below if something else is missing.
+                    </p>
+                  )}
+                  {result.toPurchase.length > 0 && (
+                    <p className="mb-2 text-xs text-[var(--cream-dim)]">
+                      No substitute on file for {result.toPurchase.map((i) => i.name).join(", ")} —
+                      add one below, or buy it to make this as written.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => tryQueued(item)}
+                      className="h-8 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90"
+                    >
+                      Try this
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeFromLabQueue(item.id)}
+                      className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </RevealOnScroll>
+              ))}
+            </div>
+            {!showAllQueued && queuedResults.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setShowAllQueued(true)}
+                className="mt-2 text-xs text-[var(--teal)] hover:underline"
+              >
+                More ({queuedResults.length - 1})
+              </button>
+            )}
+          </div>
+        )}
+
         <FlaggedIngredients />
       </RevealOnScroll>
     </div>

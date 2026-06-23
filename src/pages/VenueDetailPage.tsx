@@ -66,6 +66,7 @@ export default function VenueDetailPage() {
   const [photoDate, setPhotoDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [manualIngredientDrafts, setManualIngredientDrafts] = useState<Record<number, string>>({})
   const [saveStatus, setSaveStatus] = useState("")
+  const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
 
   if (!venue) {
     return <p className="text-sm text-[var(--cream-dim)]">Venue not found.</p>
@@ -94,14 +95,12 @@ export default function VenueDetailPage() {
     setSaveStatus(`"${recipe.name}" sent to the Experiment Lab queue.`)
   }
 
-  const handleStartBlankScan = () => {
-    const scan = addScan({
-      venueId,
-      date: new Date().toISOString().slice(0, 10),
-      photoDate: new Date().toISOString().slice(0, 10),
-      photos: [],
-    })
-    setActiveScanId(scan.id)
+  const handleLogManually = () => {
+    setPendingPhoto(null)
+    setReviewRecipes(null)
+    setSaveStatus("")
+    setParseError("")
+    setRawText("")
   }
 
   const handleMenuFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -294,7 +293,7 @@ export default function VenueDetailPage() {
         delay={80}
         className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
       >
-        <p className="mb-1 text-sm font-medium">Import menu from a photo or PDF</p>
+        <p className="mb-1 text-sm font-medium">Import Menu From A Photo Or PDF</p>
         <p className="mb-3 text-xs text-[var(--cream-dim)]">
           Upload a photo of {venue.name}'s menu, or a PDF, and this reads the text and proposes
           recipes for you to review below before saving. Runs entirely in your browser — no
@@ -322,23 +321,32 @@ export default function VenueDetailPage() {
           className="text-sm"
         />
         {isProcessing && <p className="mt-2 text-xs text-[var(--cream-dim)]">Reading file…</p>}
+        {pendingPhoto && (
+          <button
+            type="button"
+            onClick={() => setEnlargedPhoto(pendingPhoto)}
+            className="mt-2 h-20 w-20 overflow-hidden rounded-md"
+          >
+            <img src={pendingPhoto} alt="" className="h-full w-full object-cover transition hover:opacity-80" />
+          </button>
+        )}
         {parseError && <p className="mt-2 text-xs text-[var(--berry)]">{parseError}</p>}
         {saveStatus && <p className="mt-2 text-xs text-[var(--sage)]">{saveStatus}</p>}
 
         <button
           type="button"
-          onClick={handleStartBlankScan}
+          onClick={handleLogManually}
           className="mt-3 text-xs text-[var(--teal)] hover:underline"
         >
-          Or start a blank scan to log cocktails by hand instead
+          Or log cocktail menu manually
         </button>
 
         {rawText !== null && (
           <div className="mt-3 space-y-2">
             <p className="text-xs text-[var(--cream-dim)]">
-              Raw text read from the file — fix anything misread before parsing it into recipes.
-              For example, if a line reads "lemon and ginger" as one ingredient when it should be
-              two, split it onto two lines (or add a comma between them).
+              {rawText === "" && !pendingPhoto
+                ? "Type out the cocktail menu below, one ingredient per line within each recipe, then parse it into recipes."
+                : "Raw text read from the file — fix anything misread before parsing it into recipes. For example, if a line reads \"lemon and ginger\" as one ingredient when it should be two, split it onto two lines (or add a comma between them)."}
             </p>
             <textarea
               className="h-40 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] p-2 text-xs text-[var(--cream)]"
@@ -524,7 +532,14 @@ export default function VenueDetailPage() {
               {scan.photos.length > 0 && (
                 <div className="mb-3 flex gap-2">
                   {scan.photos.map((p, i) => (
-                    <img key={i} src={p} alt="" className="h-20 w-20 rounded-md object-cover" />
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setEnlargedPhoto(p)}
+                      className="h-20 w-20 overflow-hidden rounded-md"
+                    >
+                      <img src={p} alt="" className="h-full w-full object-cover transition hover:opacity-80" />
+                    </button>
                   ))}
                 </div>
               )}
@@ -637,6 +652,16 @@ export default function VenueDetailPage() {
           )
         })}
       </section>
+
+      {enlargedPhoto && (
+        <button
+          type="button"
+          onClick={() => setEnlargedPhoto(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+        >
+          <img src={enlargedPhoto} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
+        </button>
+      )}
     </div>
   )
 }

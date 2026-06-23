@@ -32,7 +32,7 @@ export default function FlaggedIngredients() {
         className="mb-1 flex w-full items-center gap-1.5 text-left text-sm font-medium"
       >
         <span className={`text-[var(--cream-dim)] transition-transform ${expanded ? "rotate-90" : ""}`}>›</span>
-        Flagged from venue scans ({flagged.length})
+        Flagged From Venue Scans ({flagged.length})
       </button>
       {!expanded && (
         <p className="text-xs text-[var(--cream-dim)]">
