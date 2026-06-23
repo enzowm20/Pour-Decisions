@@ -84,12 +84,13 @@ export default function PublicMenuPage() {
                 <RevealOnScroll
                   key={recipe.id}
                   delay={Math.min(i, 8) * 60}
-                  className="flex flex-wrap items-start justify-between gap-4 p-4"
+                  className="flex flex-wrap items-stretch justify-between gap-4 p-4"
                 >
-                  {/* Description on the left; it gets the remaining width and
-                      wraps freely, so long ingredient lists never crowd the
-                      fixed-size photo over on the right. */}
-                  <div className="min-w-[180px] flex-1">
+                  {/* Description on the left in a full-height column: details
+                      at the top, then the order button pushed to the bottom
+                      (mt-auto) so it lines up with the bottom of the portrait
+                      photo on the right. */}
+                  <div className="flex min-w-[180px] flex-1 flex-col">
                     <p className="text-sm font-medium">{recipe.name}</p>
                     <p className="text-xs text-[var(--cream-dim)]">
                       {recipe.ingredientIds
@@ -100,25 +101,22 @@ export default function PublicMenuPage() {
                     {recipe.sellPrice !== undefined && (
                       <p className="mt-1 text-sm font-medium">${recipe.sellPrice.toFixed(2)}</p>
                     )}
-                  </div>
-                  {/* Photo (fixed 4:3) on the right, with the order button
-                      directly beneath it. */}
-                  <div className="w-44 flex-shrink-0">
-                    {photo && (
-                      <img
-                        src={photo}
-                        alt={recipe.name}
-                        className="mb-2 aspect-[4/3] w-full rounded-lg object-cover"
-                      />
-                    )}
                     <button
                       type="button"
                       onClick={() => handleOrder(recipe.id)}
-                      className="w-full rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+                      className="mt-auto self-start rounded-md bg-[var(--primary)] px-4 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                     >
                       {orderedId === recipe.id ? "Ordered ✓" : "Order Cocktail"}
                     </button>
                   </div>
+                  {/* Portrait (3:4) photo on the right. */}
+                  {photo && (
+                    <img
+                      src={photo}
+                      alt={recipe.name}
+                      className="aspect-[3/4] w-44 flex-shrink-0 rounded-lg object-cover"
+                    />
+                  )}
                 </RevealOnScroll>
               )
             })}
