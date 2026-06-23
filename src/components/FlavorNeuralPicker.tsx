@@ -5,6 +5,7 @@ const VIEW = 380
 const CENTER = VIEW / 2
 const BASE_RADIUS = 125
 const MIN_GAP = 16
+const GOO_FILTER_ID = "flavor-picker-goo"
 
 interface Props {
   selectedTags: FlavorTag[]
@@ -71,63 +72,12 @@ function relax<T extends Point>(movable: T[], fixed: Point[], passes: number) {
   return movable
 }
 
-// Water palette only — no rainbow accents. A deep blue body, a brighter
-// aqua mid-tone, and a near-white highlight for gloss/sparkle.
+// Water palette only — no rainbow accents, and no yellow glow on picked
+// tags anymore (the gold stays on the text only). A deep blue body, a
+// brighter aqua mid-tone, and a near-white highlight for gloss/sparkle.
 const WATER_DEEP = "#0a3d5c"
-const WATER_BLUE = "#1f8fd6"
 const WATER_AQUA = "#6fe3ff"
 const WATER_SHINE = "#e6fbff"
-
-interface CubicCurve {
-  p0: { x: number; y: number }
-  p1: { x: number; y: number }
-  p2: { x: number; y: number }
-  p3: { x: number; y: number }
-}
-
-// Two independently-randomized control points — not mirrored around the
-// midpoint, so the curve reads as an asymmetric flowing shape rather than a
-// clean, perfect arc.
-function cubicControls(x1: number, y1: number, x2: number, y2: number, seed: number): CubicCurve {
-  const dx = x2 - x1
-  const dy = y2 - y1
-  const len = Math.hypot(dx, dy) || 1
-  const nx = -dy / len
-  const ny = dx / len
-
-  const t1 = 0.22 + pseudoRandom(seed, 1) * 0.2
-  const t2 = 0.58 + pseudoRandom(seed, 2) * 0.25
-  const bow1 = (pseudoRandom(seed, 3) - 0.5) * 80
-  const bow2 = (pseudoRandom(seed, 4) - 0.5) * 80
-
-  return {
-    p0: { x: x1, y: y1 },
-    p1: { x: x1 + dx * t1 + nx * bow1, y: y1 + dy * t1 + ny * bow1 },
-    p2: { x: x1 + dx * t2 + nx * bow2, y: y1 + dy * t2 + ny * bow2 },
-    p3: { x: x2, y: y2 },
-  }
-}
-
-function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
-  const c = cubicControls(x1, y1, x2, y2, seed)
-  return `M ${c.p0.x} ${c.p0.y} C ${c.p1.x} ${c.p1.y}, ${c.p2.x} ${c.p2.y}, ${c.p3.x} ${c.p3.y}`
-}
-
-function cubicPoint(c: CubicCurve, t: number) {
-  const mt = 1 - t
-  return {
-    x: mt * mt * mt * c.p0.x + 3 * mt * mt * t * c.p1.x + 3 * mt * t * t * c.p2.x + t * t * t * c.p3.x,
-    y: mt * mt * mt * c.p0.y + 3 * mt * mt * t * c.p1.y + 3 * mt * t * t * c.p2.y + t * t * t * c.p3.y,
-  }
-}
-
-function cubicTangent(c: CubicCurve, t: number) {
-  const mt = 1 - t
-  return {
-    x: 3 * mt * mt * (c.p1.x - c.p0.x) + 6 * mt * t * (c.p2.x - c.p1.x) + 3 * t * t * (c.p3.x - c.p2.x),
-    y: 3 * mt * mt * (c.p1.y - c.p0.y) + 6 * mt * t * (c.p2.y - c.p1.y) + 3 * t * t * (c.p3.y - c.p2.y),
-  }
-}
 
 // Builds a closed, organic outline through an ordered ring of points, joined
 // with smooth curves through their midpoints — no straight edges or sharp
@@ -173,34 +123,24 @@ function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: 
 const BLOB_KEY_TIMES = "0;0.25;0.5;0.75;1"
 const BLOB_KEY_SPLINES = "0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1"
 
-// A filled river/blob shape running along a curve between two points,
-// tapered near both ends but bulging and pinching erratically in between —
-// reads as an elongated body of liquid flowing from one point to the other,
-// not a drawn line.
-function riverOutline(x1: number, y1: number, x2: number, y2: number, seed: number, variant: number, maxWidth: number) {
-  const c = cubicControls(x1, y1, x2, y2, seed)
-  const samples = 10
-  const left: { x: number; y: number }[] = []
-  const right: { x: number; y: number }[] = []
-  for (let i = 0; i <= samples; i++) {
-    const t = i / samples
-    const pt = cubicPoint(c, t)
-    const tan = cubicTangent(c, t)
-    const tlen = Math.hypot(tan.x, tan.y) || 1
-    const nx = -tan.y / tlen
-    const ny = tan.x / tlen
-    const envelope = 0.2 + 0.8 * Math.sin(Math.PI * t)
-    const jitter = 0.6 + pseudoRandom(seed + variant * 131, i * 17) * 0.7
-    const width = maxWidth * envelope * jitter
-    left.push({ x: pt.x + nx * (width / 2), y: pt.y + ny * (width / 2) })
-    right.push({ x: pt.x - nx * (width / 2), y: pt.y - ny * (width / 2) })
-  }
-  return smoothClosedPath([...left, ...right.reverse()])
+// A simple teardrop silhouette (pointed top, round bottom) plus a tiny
+// specular highlight — reads as an actual droplet rather than a glowing dot.
+// Drawn pointing "up" by default; rotate to orient along its direction of
+// travel.
+function WaterDrop({ x, y, r, rotationDeg, fill }: { x: number; y: number; r: number; rotationDeg: number; fill: string }) {
+  const d = `M0,${-r} C${r * 0.55},${-r * 0.1} ${r * 0.9},${r * 0.35} ${r * 0.55},${r * 0.75} A${r * 0.55},${r * 0.55} 0 1 1 ${-r * 0.55},${r * 0.75} C${-r * 0.9},${r * 0.35} ${-r * 0.55},${-r * 0.1} 0,${-r} Z`
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${rotationDeg})`}>
+      <path d={d} fill={fill} />
+      <ellipse cx={-r * 0.18} cy={-r * 0.2} rx={r * 0.18} ry={r * 0.12} fill={WATER_SHINE} opacity={0.7} />
+    </g>
+  )
 }
 
 // A few small droplets flung off a point along its outward normal, fading
-// and falling as they go — this is what actually sells "water being moved
-// by something," not just a glow.
+// and falling as they go, oriented tip-first along their direction of
+// travel — this is what actually sells "water being moved by something,"
+// not just a glow.
 function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx: number; ny: number; seed: number; count?: number }) {
   return (
     <>
@@ -210,13 +150,10 @@ function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx:
         const dx = nx + spread * ny
         const dy = ny - spread * nx
         const len = Math.hypot(dx, dy) || 1
+        const rotationDeg = (Math.atan2(dy, dx) * 180) / Math.PI + 90
         return (
-          <circle
+          <g
             key={i}
-            cx={x}
-            cy={y}
-            r={1.1 + pseudoRandom(s, 2) * 1.1}
-            fill={pseudoRandom(s, 3) > 0.5 ? WATER_AQUA : WATER_SHINE}
             className="water-droplet"
             style={
               {
@@ -226,7 +163,15 @@ function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx:
                 animationDelay: `${pseudoRandom(s, 6) * 3}s`,
               } as React.CSSProperties
             }
-          />
+          >
+            <WaterDrop
+              x={x}
+              y={y}
+              r={1.6 + pseudoRandom(s, 2) * 1.6}
+              rotationDeg={rotationDeg}
+              fill={pseudoRandom(s, 3) > 0.5 ? WATER_AQUA : WATER_SHINE}
+            />
+          </g>
         )
       })}
     </>
@@ -250,14 +195,19 @@ function OrbitDroplets({ anchor, t, seed, count = 5 }: { anchor: { x: number; y:
         const angle = phase + t * speed
         const x = anchor.x + radius * Math.cos(angle)
         const y = anchor.y + radius * Math.sin(angle) * squash
+        // Tangent of the orbit (derivative w.r.t. angle) — orients the
+        // droplet's point along its direction of travel.
+        const tx = -radius * Math.sin(angle)
+        const ty = radius * Math.cos(angle) * squash
+        const rotationDeg = (Math.atan2(ty, tx) * 180) / Math.PI + 90
         return (
-          <circle
+          <WaterDrop
             key={i}
-            cx={x}
-            cy={y}
+            x={x}
+            y={y}
             r={1.6 + pseudoRandom(s, 5) * 1.6}
+            rotationDeg={rotationDeg}
             fill={pseudoRandom(s, 6) > 0.5 ? WATER_AQUA : WATER_SHINE}
-            className="orbit-droplet"
           />
         )
       })}
@@ -265,62 +215,18 @@ function OrbitDroplets({ anchor, t, seed, count = 5 }: { anchor: { x: number; y:
   )
 }
 
-// A liquid river between two points: a filled, organically morphing body
-// (not a stroked line) with a thin glossy centerline and a droplet of light
-// sliding along it — reads as a taut, flowing body of water joining the
-// blob to whatever it's linked to.
-function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
-  const centerline = curveBetween(from.x, from.y, to.x, to.y, seed)
-  const variants = useMemo(
-    () => [0, 1, 2].map((v) => riverOutline(from.x, from.y, to.x, to.y, seed, v, 17)),
-    [from.x, from.y, to.x, to.y, seed],
-  )
-  const values = `${variants.join(";")};${variants[0]}`
-  const gradId = `liquid-grad-${seed}`
-  const mx = (from.x + to.x) / 2
-  const my = (from.y + to.y) / 2
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const len = Math.hypot(dx, dy) || 1
-
-  return (
-    <g>
-      <defs>
-        <linearGradient id={gradId} x1={from.x} y1={from.y} x2={to.x} y2={to.y} gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={WATER_BLUE} />
-          <stop offset="50%" stopColor={WATER_AQUA} />
-          <stop offset="100%" stopColor={WATER_BLUE} />
-        </linearGradient>
-      </defs>
-      <path d={variants[0]} fill={`url(#${gradId})`} className="liquid-river">
-        <animate attributeName="d" values={values} dur={`${4.2 + pseudoRandom(seed, 80) * 2.2}s`} repeatCount="indefinite" />
-      </path>
-      <path d={centerline} stroke={WATER_SHINE} className="liquid-sheen" />
-      <ellipse rx={3.6} ry={1.8} fill={WATER_SHINE} className="liquid-droplet">
-        <animateMotion
-          dur={`${2.6 + pseudoRandom(seed, 60) * 1.8}s`}
-          begin={`${pseudoRandom(seed, 70) * 2}s`}
-          repeatCount="indefinite"
-          path={centerline}
-          rotate="auto"
-        />
-      </ellipse>
-      <Droplets x={mx} y={my} nx={-dy / len} ny={dx / len} seed={seed + 100} count={2} />
-    </g>
-  )
-}
-
-// The "thinking" core — possessed water: an outline that morphs between
-// irregular, asymmetric shapes (SMIL on "d", at a fixed reference size, so
-// the morph loop itself never restarts), wrapped in a separate group whose
-// CSS-transitioned scale is the only thing that changes when the blob grows
-// — so swelling reads as one continuous body filling out, not the same
-// animation replayed bigger.
-function WaterBlob({ cx, cy, radius, seed, active }: { cx: number; cy: number; radius: number; seed: number; active: boolean }) {
+// Just the morphing outline + glossy body of the "thinking" core — no
+// droplets here, so this can be grouped with every other blob's shape under
+// one shared "goo" filter (blur + contrast threshold) that fuses overlapping
+// edges into a single body, the classic metaball trick. This is what makes
+// separate blobs read as pooling together via surface tension rather than
+// being joined by a drawn connector.
+function WaterBlobShape({ cx, cy, radius, seed, active, sweep }: { cx: number; cy: number; radius: number; seed: number; active: boolean; sweep?: boolean }) {
   const REF_R = 20
   const variants = useMemo(() => [0, 1, 2, 3].map((v) => blobPath(0, 0, REF_R, seed, v)), [seed])
   const values = `${variants.join(";")};${variants[0]}`
   const gradId = `water-body-${seed}`
+  const clipId = `water-clip-${seed}`
   const scale = radius / REF_R
 
   return (
@@ -332,6 +238,9 @@ function WaterBlob({ cx, cy, radius, seed, active }: { cx: number; cy: number; r
             <stop offset="35%" stopColor={WATER_AQUA} stopOpacity={0.85} />
             <stop offset="100%" stopColor={WATER_DEEP} stopOpacity={0.9} />
           </radialGradient>
+          <clipPath id={clipId}>
+            <circle r={REF_R * 1.05} />
+          </clipPath>
         </defs>
         <path d={variants[0]} fill={WATER_DEEP} opacity={active ? 0.35 : 0.18} className="water-blob-glow">
           <animate
@@ -355,22 +264,12 @@ function WaterBlob({ cx, cy, radius, seed, active }: { cx: number; cy: number; r
             repeatCount="indefinite"
           />
         </path>
+        {sweep && (
+          <g clipPath={`url(#${clipId})`}>
+            <rect x={-7} y={-REF_R * 1.4} width={14} height={REF_R * 2.8} fill={WATER_SHINE} className="blob-wave-sweep" />
+          </g>
+        )}
       </g>
-      {[0, 1, 2].map((i) => {
-        const angle = pseudoRandom(seed, i * 31) * Math.PI * 2
-        const r = radius * (0.8 + pseudoRandom(seed, i * 41) * 0.3)
-        return (
-          <Droplets
-            key={i}
-            x={r * Math.cos(angle)}
-            y={r * Math.sin(angle)}
-            nx={Math.cos(angle)}
-            ny={Math.sin(angle)}
-            seed={seed + i * 23}
-            count={2}
-          />
-        )
-      })}
     </g>
   )
 }
@@ -401,9 +300,19 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
     }))
   }, [])
 
+  const hasSelection = selectedTags.length > 0
+
+  // The blob swells a little more with every tag pressed, capped so it never
+  // crowds out the picker.
+  const blobRadius = Math.min(15 + selectedTags.length * 3.4, 34)
+
+  // The central blob is a fixed obstacle for every other layout pass below —
+  // this is what stops resting AND active tags from ever overlapping it.
+  const blobObstacle: Point = { x: CENTER, y: CENTER, r: blobRadius + 12 }
+
   // Active layout: the same nodes pulled in toward the core along their own
-  // angle, then relaxed again among just the selected subset so a cluster of
-  // picks doesn't pile on top of itself near the center.
+  // angle, relaxed against the blob itself plus each other so a cluster of
+  // picks doesn't pile on top of itself OR sit on top of the growing blob.
   const activeCluster = useMemo(() => {
     const active = nodes.filter((n) => selectedTags.includes(n.tag))
     const radius = 55 + active.length * 9
@@ -413,32 +322,29 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       x: CENTER + radius * Math.cos(n.angle),
       y: CENTER + radius * Math.sin(n.angle),
     }))
-    relax(points, [], 40)
+    relax(points, [blobObstacle], 40)
     return points
-  }, [nodes, selectedTags])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, selectedTags, blobRadius])
 
   const activePositions = useMemo(
     () => new Map(activeCluster.map((p) => [p.tag, { x: p.x, y: p.y }])),
     [activeCluster],
   )
 
-  // Resting nodes are relaxed against the active cluster (as fixed obstacles
-  // they get pushed away from) AND against each other (so being pushed back
-  // doesn't just pile them up on top of one another instead) — nothing ends
-  // up overlapping anything, active or resting.
+  // Resting nodes are relaxed against the blob AND the active cluster (as
+  // fixed obstacles they get pushed away from) AND against each other (so
+  // being pushed back doesn't just pile them up on top of one another
+  // instead) — nothing ends up overlapping anything, blob, active, or
+  // resting.
   const restingPositions = useMemo(() => {
     const inactive = nodes
       .filter((n) => !selectedTags.includes(n.tag))
       .map((n) => ({ tag: n.tag, x: n.x, y: n.y, r: n.r }))
-    relax(inactive, activeCluster, 60)
+    relax(inactive, [blobObstacle, ...activeCluster], 60)
     return new Map(inactive.map((p) => [p.tag, { x: p.x, y: p.y }]))
-  }, [nodes, activeCluster, selectedTags])
-
-  const hasSelection = selectedTags.length > 0
-
-  // The blob swells a little more with every tag pressed, capped so it never
-  // crowds out the picker.
-  const blobRadius = Math.min(15 + selectedTags.length * 3.4, 34)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, activeCluster, selectedTags, blobRadius])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const cursorRef = useRef<{ x: number; y: number } | null>(null)
@@ -490,48 +396,62 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible"
     >
       <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
-        {/* Liquid connections: each active node back to the blob, plus a full
-            mesh between every pair of active nodes — picks "talk" to each
-            other through threads of the same liquid. Resting nodes stay
-            unconnected until they're picked. */}
-        {hasSelection &&
-          selectedTags.map((tag, i) => {
-            const pos = activePositions.get(tag)
-            if (!pos) return null
-            return <LiquidLink key={`hub-${tag}`} from={{ x: CENTER, y: CENTER }} to={pos} seed={i * 5} />
-          })}
-        {selectedTags.flatMap((tagA, ai) =>
-          selectedTags.slice(ai + 1).map((tagB, bi) => {
-            const posA = activePositions.get(tagA)
-            const posB = activePositions.get(tagB)
-            if (!posA || !posB) return null
-            return <LiquidLink key={`${tagA}-${tagB}`} from={posA} to={posB} seed={ai * 11 + bi * 7 + 3} />
-          }),
-        )}
+        <defs>
+          {/* The "goo" trick: blur everything in the group together, then
+              push contrast back up past a threshold — wherever two blurred
+              shapes overlapped enough, the threshold reconnects them into
+              one solid edge instead of two separate outlines. */}
+          <filter id={GOO_FILTER_ID}>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+            <feColorMatrix
+              in="blur"
+              mode="matrix"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9"
+              result="goo"
+            />
+            <feComposite in="goo" in2="goo" operator="atop" />
+          </filter>
+        </defs>
 
         {/* Droplets originating from the blob, orbiting a lagged anchor that
-            eases toward the cursor — no river here, just water lazily
-            trailing wherever you point, like little satellites being towed
-            around. */}
+            eases toward the cursor — like little satellites being towed
+            around, no connecting stream here. */}
         <OrbitDroplets anchor={{ x: orbit.x, y: orbit.y }} t={orbit.t} seed={11} count={5} />
 
-        {/* Each picked tag gets its own small blob — same shading and morph
-            style as the central one — sitting right where its label has
-            gravitated to, joined back to the core by a river. Together with
-            the core's own growth, this is the "pooling" effect: more, and
-            bigger, body of liquid the more you pick. */}
-        {selectedTags.map((tag, i) => {
-          const pos = activePositions.get(tag)
-          if (!pos) return null
-          const tagSeed = tag.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + i * 17
+        {/* Every blob shape (core + one per picked tag) shares this filter,
+            so anything close enough pools into the central body via surface
+            tension rather than being linked by a drawn connector. */}
+        <g filter={`url(#${GOO_FILTER_ID})`}>
+          <WaterBlobShape cx={CENTER} cy={CENTER} radius={blobRadius} seed={7} active={hasSelection} />
+          {selectedTags.map((tag, i) => {
+            const pos = activePositions.get(tag)
+            if (!pos) return null
+            const tagSeed = tag.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + i * 17
+            return (
+              <g key={`node-blob-${tag}`} className="blob-pop-in">
+                <WaterBlobShape cx={pos.x} cy={pos.y} radius={13} seed={tagSeed} active sweep />
+              </g>
+            )
+          })}
+        </g>
+
+        {/* Surface droplets for the central blob — kept outside the goo
+            group so the filter's blur never touches them. */}
+        {[0, 1, 2].map((i) => {
+          const angle = pseudoRandom(7, i * 31) * Math.PI * 2
+          const r = blobRadius * (0.8 + pseudoRandom(7, i * 41) * 0.3)
           return (
-            <g key={`node-blob-${tag}`} className="blob-pop-in">
-              <WaterBlob cx={pos.x} cy={pos.y} radius={10} seed={tagSeed} active />
-            </g>
+            <Droplets
+              key={i}
+              x={CENTER + r * Math.cos(angle)}
+              y={CENTER + r * Math.sin(angle)}
+              nx={Math.cos(angle)}
+              ny={Math.sin(angle)}
+              seed={7 + i * 23}
+              count={2}
+            />
           )
         })}
-
-        <WaterBlob cx={CENTER} cy={CENTER} radius={blobRadius} seed={7} active={hasSelection} />
       </svg>
 
       {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {
@@ -558,10 +478,10 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
             <button
               type="button"
               onClick={() => onToggle(tag)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out hover:scale-125 ${
+              className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out hover:scale-125 ${
                 isActive
-                  ? "border-[var(--gold)] bg-[var(--gold)]/20 text-[var(--gold)] shadow-[0_0_14px_-2px_var(--gold)]"
-                  : "border-[var(--cream-dim)]/25 bg-[var(--surface-raised)] text-[var(--cream-dim)] hover:border-[var(--gold)]/60 hover:text-[var(--cream)]"
+                  ? "text-[var(--gold)] drop-shadow-[0_0_6px_var(--gold)]"
+                  : "border border-[var(--cream-dim)]/25 bg-[var(--surface-raised)] text-[var(--cream-dim)] hover:border-[var(--gold)]/60 hover:text-[var(--cream)]"
               }`}
             >
               {tag}
