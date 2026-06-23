@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useRef, useState } from "react"
 import { FLAVOR_TAGS, type FlavorTag } from "../types"
 
 const VIEW = 380
@@ -307,8 +307,30 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
 
   const hasSelection = selectedTags.length > 0
 
+  // The blob swells a little more with every tag pressed, capped so it never
+  // crowds out the picker.
+  const blobRadius = Math.min(15 + selectedTags.length * 3.4, 34)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = containerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setCursor({
+      x: ((e.clientX - rect.left) / rect.width) * VIEW,
+      y: ((e.clientY - rect.top) / rect.height) * VIEW,
+    })
+  }
+
   return (
-    <div className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible">
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setCursor(null)}
+      className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible"
+    >
       <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
         {/* Liquid connections: each active node back to the blob, plus a full
             mesh between every pair of active nodes — picks "talk" to each
@@ -329,7 +351,28 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
           }),
         )}
 
-        <WaterBlob cx={CENTER} cy={CENTER} baseR={hasSelection ? 26 : 15} seed={7} active={hasSelection} />
+        {/* A river chasing the cursor — reaches out from the blob toward
+            wherever the mouse is, reshaping continuously since the curve's
+            own seed is derived from the live cursor position. */}
+        {cursor &&
+          (() => {
+            const dx = cursor.x - CENTER
+            const dy = cursor.y - CENTER
+            const len = Math.hypot(dx, dy) || 1
+            const ux = dx / len
+            const uy = dy / len
+            const edgeX = CENTER + ux * blobRadius
+            const edgeY = CENTER + uy * blobRadius
+            const chaseSeed = Math.floor(cursor.x * 3 + cursor.y * 7)
+            return (
+              <>
+                <LiquidLink from={{ x: CENTER, y: CENTER }} to={cursor} seed={chaseSeed} />
+                <Droplets x={edgeX} y={edgeY} nx={ux} ny={uy} seed={chaseSeed + 500} count={3} />
+              </>
+            )
+          })()}
+
+        <WaterBlob cx={CENTER} cy={CENTER} baseR={blobRadius} seed={7} active={hasSelection} />
       </svg>
 
       {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {
