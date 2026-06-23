@@ -78,13 +78,9 @@ export default function VenuesPage() {
                   }}
                 />
               ) : (
-                <Link
-                  to={`/venues/${venue.id}`}
-                  onDoubleClick={(e) => {
-                    e.preventDefault()
-                    startEdit(venue.id, venue.name)
-                  }}
-                  className="min-w-0"
+                <div
+                  onDoubleClick={() => startEdit(venue.id, venue.name)}
+                  className="min-w-0 cursor-text select-none"
                   title="Double-click the name to rename"
                 >
                   <p className="text-sm font-medium">{venue.name}</p>
@@ -92,7 +88,7 @@ export default function VenuesPage() {
                     {venueScans.length} scan{venueScans.length === 1 ? "" : "s"} ·{" "}
                     {cocktailCount} cocktail{cocktailCount === 1 ? "" : "s"} logged
                   </p>
-                </Link>
+                </div>
               )}
               <div className="flex items-center gap-3">
                 <Link to={`/venues/${venue.id}`} className="text-xs text-[var(--teal)] hover:underline">

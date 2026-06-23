@@ -118,13 +118,19 @@ body {
 }
 
 /* A selected tag breathes a soft glow on a slow loop — subtle, not flashy.
-   Uses currentColor so it tints to whatever accent the tag already uses. */
+   The animation runs on EVERY tag from page load (".tag-glow"), so they all
+   share one phase and strobe together no matter when each was clicked; the
+   glow itself is only visible on selected tags, which set --tag-glow to a
+   real colour. currentColor tints it to whatever accent the tag uses. */
 @keyframes tag-strobe {
   0%, 100% { box-shadow: 0 0 0 0 transparent; }
-  50% { box-shadow: 0 0 9px 1px currentColor; }
+  50% { box-shadow: 0 0 9px 1px var(--tag-glow, transparent); }
 }
-.tag-strobe {
+.tag-glow {
   animation: tag-strobe 2.6s ease-in-out infinite;
+}
+.tag-glow-on {
+  --tag-glow: currentColor;
 }
 
 /* "Thinking" gimmick — pulsing dot plus a sequential ellipsis. */

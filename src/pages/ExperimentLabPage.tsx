@@ -134,10 +134,19 @@ export default function ExperimentLabPage() {
     const qualifies = (anchor: Ingredient, c: Ingredient) =>
       learnedWith(anchor, c) || (!haveArchiveData && styleWith(anchor, c))
 
-    // Restraint: a real cocktail is a handful of ingredients, not a dozen.
-    // Hard cap the whole build small, and never more than one of each
-    // mixer/citrus/sweetener/fruit/top-up, at most two spirits.
-    const MAX_TOTAL = 4
+    // Not a hard ceiling — these are sensible "how much of each is worth
+    // suggesting" amounts. A build can use a few of some categories but
+    // shouldn't pile on (one top-up is plenty; a couple of fruits/sweeteners
+    // at most). What keeps combos sane is that every extra still has to be a
+    // proven partner of the anchor, not just filling slots.
+    const SOFT_CAP: Record<string, number> = {
+      spirit: 4,
+      mixer: 4,
+      citrus: 1,
+      sweetener: 2,
+      fruit: 2,
+      other: 1,
+    }
     const MAX_COMBOS = 8
     const seenSignatures = new Set<string>()
     const result: Combo[] = []
@@ -151,27 +160,24 @@ export default function ExperimentLabPage() {
         .filter((c) => qualifies(anchor, c))
         .sort((a, b) => Number(learnedWith(anchor, b)) - Number(learnedWith(anchor, a)))
 
-      // A second spirit only if it's been proven with the anchor — keeps
-      // multi-spirit builds deliberate rather than scattershot.
-      const secondSpirit = spiritCandidates.find((s) => s.id !== anchor.id && learnedWith(anchor, s))
+      // Extra spirits that have been proven with the anchor — kept deliberate
+      // rather than scattershot.
+      const extraSpirits = spiritCandidates.filter((s) => s.id !== anchor.id && learnedWith(anchor, s))
 
-      const bySlot: Combo["bySlot"] = { spirit: [anchor] }
-      let total = 1
-      const usedCategories = new Set<string>()
-
-      if (secondSpirit && total < MAX_TOTAL) {
-        bySlot.spirit = [anchor, secondSpirit]
-        total++
+      const bySlot: Combo["bySlot"] = {
+        spirit: [anchor, ...extraSpirits.slice(0, SOFT_CAP.spirit - 1)],
       }
+      const perCategory = new Map<string, number>()
 
       for (const c of partners) {
-        if (total >= MAX_TOTAL) break
-        if (usedCategories.has(c.category)) continue // one per non-spirit category
-        usedCategories.add(c.category)
-        bySlot[c.category as (typeof otherCategories)[number]] = [c]
-        total++
+        const cat = c.category as (typeof otherCategories)[number]
+        const used = perCategory.get(cat) ?? 0
+        if (used >= (SOFT_CAP[cat] ?? 1)) continue // category's had enough
+        perCategory.set(cat, used + 1)
+        bySlot[cat] = [...(bySlot[cat] ?? []), c]
       }
 
+      const total = Object.values(bySlot).flat().length
       // A lone spirit isn't a suggestion worth showing.
       if (total < 2) continue
 

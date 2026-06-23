@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react"
-import { compressDataUrl, useLocalStorageState } from "../lib/storage"
+import { compressDataUrl, useLocalStorageState, usePhotoSplitState } from "../lib/storage"
 import { makeId } from "../lib/id"
 import type { Experiment, Ingredient, LabQueueItem, Recipe, Scan, Substitution, Venue } from "../types"
 
@@ -59,9 +59,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [],
   )
   const [venues, setVenues] = useLocalStorageState<Venue[]>("venues", [])
-  const [scans, setScans] = useLocalStorageState<Scan[]>("scans", [])
+  // scans + experiments carry photo blobs — persisted with photos split into
+  // their own key so a photo-quota failure can never lose the entries.
+  const [scans, setScans] = usePhotoSplitState<Scan>("scans", [])
   const [recipes, setRecipes] = useLocalStorageState<Recipe[]>("recipes", [])
-  const [experiments, setExperiments] = useLocalStorageState<Experiment[]>("experiments", [])
+  const [experiments, setExperiments] = usePhotoSplitState<Experiment>("experiments", [])
   const [labQueue, setLabQueue] = useLocalStorageState<LabQueueItem[]>("labQueue", [])
 
   // One-time-per-load migration: shrink any oversized photos left over from
@@ -108,6 +110,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }),
         )
         if (!cancelled) setScans(updated)
+      }
+
+      // Backfill: older menu recipes were promoted before photos were
+      // snapshotted onto the recipe, so they show no image. Copy the photo
+      // over from the source Archive experiment (matched by name) so it
+      // persists on the recipe and shows on both menu pages.
+      const photoByName = new Map(
+        experiments.filter((e) => e.photos[0]).map((e) => [e.name.toLowerCase(), e.photos[0]]),
+      )
+      const needsBackfill = recipes.some(
+        (r) => r.venueId === null && !r.photo && photoByName.has(r.name.toLowerCase()),
+      )
+      if (needsBackfill && !cancelled) {
+        setRecipes((prev) =>
+          prev.map((r) =>
+            r.venueId === null && !r.photo && photoByName.has(r.name.toLowerCase())
+              ? { ...r, photo: photoByName.get(r.name.toLowerCase()) }
+              : r,
+          ),
+        )
       }
     })()
 

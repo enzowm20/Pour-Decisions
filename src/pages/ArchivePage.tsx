@@ -134,9 +134,9 @@ export default function ArchivePage() {
                 key={tag}
                 type="button"
                 onClick={() => toggleTag(tag)}
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`rounded-full border px-3 py-1 text-xs tag-glow ${
                   tags.includes(tag)
-                    ? "tag-strobe border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                    ? "tag-glow-on border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                     : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
                 }`}
               >

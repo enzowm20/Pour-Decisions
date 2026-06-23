@@ -206,9 +206,9 @@ export default function StockPage() {
                 key={style}
                 type="button"
                 onClick={() => toggleIngredientStyle(ing.id, ingStyles, style)}
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`rounded-full border px-3 py-1 text-xs tag-glow ${
                   ingStyles.includes(style)
-                    ? "tag-strobe border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                    ? "tag-glow-on border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                     : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
                 }`}
               >
@@ -270,9 +270,9 @@ export default function StockPage() {
               key={tag}
               type="button"
               onClick={() => toggleTag(tag)}
-              className={`rounded-full border px-3 py-1 text-xs ${
+              className={`rounded-full border px-3 py-1 text-xs tag-glow ${
                 tags.includes(tag)
-                  ? "tag-strobe border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
+                  ? "tag-glow-on border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
                   : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
               }`}
             >
@@ -288,9 +288,9 @@ export default function StockPage() {
               key={style}
               type="button"
               onClick={() => toggleStyle(style)}
-              className={`rounded-full border px-3 py-1 text-xs ${
+              className={`rounded-full border px-3 py-1 text-xs tag-glow ${
                 styles.includes(style)
-                  ? "tag-strobe border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                  ? "tag-glow-on border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                   : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
               }`}
             >

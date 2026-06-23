@@ -31,6 +31,52 @@ export function useLocalStorageState<T>(key: string, initial: T) {
   return [state, setState] as const
 }
 
+// Like useLocalStorageState, but for arrays of entities that carry a
+// `photos: string[]` field which can be large. The structural data (tiny) and
+// the photo blobs (potentially megabytes) are persisted to SEPARATE
+// localStorage keys, and written in two independent try/catch blocks. So if
+// the photo write ever exceeds the quota, only photos are dropped — the
+// entries themselves are ALWAYS saved. This is what stops freshly entered
+// venue scans from vanishing on refresh when storage is tight.
+//
+// Backwards compatible: legacy data stored the photos inline under `key`, so
+// the first load reads them from there; the next save splits them out and
+// shrinks the structural key, freeing space.
+export function usePhotoSplitState<T extends { id: string; photos: string[] }>(key: string, initial: T[]) {
+  const photoKey = `${key}:photos`
+  const [state, setState] = useState<T[]>(() => {
+    try {
+      const metaRaw = localStorage.getItem(key)
+      const meta: T[] = metaRaw ? (JSON.parse(metaRaw) as T[]) : initial
+      const photosRaw = localStorage.getItem(photoKey)
+      const photos: Record<string, string[]> = photosRaw ? JSON.parse(photosRaw) : {}
+      return meta.map((e) => ({ ...e, photos: photos[e.id] ?? e.photos ?? [] }))
+    } catch {
+      return initial
+    }
+  })
+
+  useEffect(() => {
+    // Structural data without photos — small, must always persist.
+    try {
+      const meta = state.map((e) => ({ ...e, photos: [] as string[] }))
+      localStorage.setItem(key, JSON.stringify(meta))
+    } catch (err) {
+      console.warn(`Couldn't save "${key}" entries to localStorage.`, err)
+    }
+    // Photos — may exceed quota; if so only photos are lost, never entries.
+    try {
+      const photos: Record<string, string[]> = {}
+      for (const e of state) if (e.photos?.length) photos[e.id] = e.photos
+      localStorage.setItem(photoKey, JSON.stringify(photos))
+    } catch (err) {
+      console.warn(`Couldn't save "${key}" photos to localStorage (out of space).`, err)
+    }
+  }, [key, photoKey, state])
+
+  return [state, setState] as const
+}
+
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

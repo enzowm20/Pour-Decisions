@@ -17,10 +17,6 @@ const TABS: { value: MenuCategory; label: string }[] = [
   { value: "discontinued", label: "Discontinued" },
 ]
 
-// Where a recipe moves to from its "Move to..." control: cycles through the
-// real menu sections (skips discontinued, which has its own control).
-const MOVE_TARGETS: MenuCategory[] = ["core", "seasonal", "event-special", "venue-hybrid"]
-
 export default function MyMenuPage() {
   const { recipes, updateRecipe, removeRecipe, ingredients, substitutions, experiments } = useData()
   const [tab, setTab] = useState<MenuCategory>("core")
@@ -75,8 +71,6 @@ export default function MyMenuPage() {
           const recipeMargin = margin(sellPrice, cost)
           const marginPct = marginPercent(sellPrice, cost)
           const photo = recipe.photo ?? photoByName.get(recipe.name.toLowerCase())
-          const moveTo = MOVE_TARGETS[(MOVE_TARGETS.indexOf(tab) + 1) % MOVE_TARGETS.length]
-          const moveToLabel = TABS.find((t) => t.value === moveTo)?.label ?? moveTo
 
           return (
             <RevealOnScroll key={recipe.id} delay={Math.min(i, 8) * 60} className="p-4">
@@ -99,30 +93,20 @@ export default function MyMenuPage() {
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
                   <StatusBadge status={result.status} />
-                  <button
-                    type="button"
-                    onClick={() => updateRecipe(recipe.id, { menuCategory: moveTo })}
-                    className="text-xs text-[var(--teal)] hover:underline"
-                  >
-                    Move to {moveToLabel}
-                  </button>
-                  {tab !== "discontinued" ? (
-                    <button
-                      type="button"
-                      onClick={() => updateRecipe(recipe.id, { menuCategory: "discontinued" })}
-                      className="text-xs text-[var(--cream-dim)] hover:text-[var(--cream)]"
+                  <label className="flex items-center gap-1 text-xs text-[var(--cream-dim)]">
+                    Move to
+                    <select
+                      value={recipe.menuCategory ?? "core"}
+                      onChange={(e) => updateRecipe(recipe.id, { menuCategory: e.target.value as MenuCategory })}
+                      className="h-7 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
                     >
-                      Discontinue
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => updateRecipe(recipe.id, { menuCategory: "core" })}
-                      className="text-xs text-[var(--teal)] hover:underline"
-                    >
-                      Restore
-                    </button>
-                  )}
+                      {TABS.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     type="button"
                     onClick={() => removeRecipe(recipe.id)}
