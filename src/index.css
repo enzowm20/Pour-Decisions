@@ -114,7 +114,7 @@ body {
 }
 .blob-wave-sweep {
   mix-blend-mode: screen;
-  animation: blob-wave-sweep 2.8s ease-in-out infinite;
+  animation: blob-wave-sweep 4.6s ease-in-out infinite;
 }
 
 /* "Thinking" gimmick — pulsing dot plus a sequential ellipsis. */

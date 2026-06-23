@@ -123,16 +123,16 @@ function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: 
 const BLOB_KEY_TIMES = "0;0.25;0.5;0.75;1"
 const BLOB_KEY_SPLINES = "0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1"
 
-// A simple teardrop silhouette (pointed top, round bottom) plus a tiny
-// specular highlight — reads as an actual droplet rather than a glowing dot.
-// Drawn pointing "up" by default; rotate to orient along its direction of
-// travel.
+// A plump, rounded bead (not a thin elongated teardrop) plus a tight
+// specular highlight — reads as a condensed drop of water rather than a
+// glowing dot or a wisp. Drawn pointing "up" by default; rotate to orient
+// along its direction of travel.
 function WaterDrop({ x, y, r, rotationDeg, fill }: { x: number; y: number; r: number; rotationDeg: number; fill: string }) {
-  const d = `M0,${-r} C${r * 0.55},${-r * 0.1} ${r * 0.9},${r * 0.35} ${r * 0.55},${r * 0.75} A${r * 0.55},${r * 0.55} 0 1 1 ${-r * 0.55},${r * 0.75} C${-r * 0.9},${r * 0.35} ${-r * 0.55},${-r * 0.1} 0,${-r} Z`
+  const d = `M0,${-r * 0.82} C${r * 0.52},${-r * 0.7} ${r * 0.88},${-r * 0.18} ${r * 0.8},${r * 0.18} C${r * 0.72},${r * 0.62} ${r * 0.38},${r * 0.88} 0,${r * 0.88} C${-r * 0.38},${r * 0.88} ${-r * 0.72},${r * 0.62} ${-r * 0.8},${r * 0.18} C${-r * 0.88},${-r * 0.18} ${-r * 0.52},${-r * 0.7} 0,${-r * 0.82} Z`
   return (
     <g transform={`translate(${x} ${y}) rotate(${rotationDeg})`}>
       <path d={d} fill={fill} />
-      <ellipse cx={-r * 0.18} cy={-r * 0.2} rx={r * 0.18} ry={r * 0.12} fill={WATER_SHINE} opacity={0.7} />
+      <ellipse cx={-r * 0.22} cy={-r * 0.22} rx={r * 0.22} ry={r * 0.15} fill={WATER_SHINE} opacity={0.85} />
     </g>
   )
 }
@@ -167,7 +167,7 @@ function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx:
             <WaterDrop
               x={x}
               y={y}
-              r={1.6 + pseudoRandom(s, 2) * 1.6}
+              r={2.1 + pseudoRandom(s, 2) * 1.5}
               rotationDeg={rotationDeg}
               fill={pseudoRandom(s, 3) > 0.5 ? WATER_AQUA : WATER_SHINE}
             />
@@ -205,7 +205,7 @@ function OrbitDroplets({ anchor, t, seed, count = 5 }: { anchor: { x: number; y:
             key={i}
             x={x}
             y={y}
-            r={1.6 + pseudoRandom(s, 5) * 1.6}
+            r={2.1 + pseudoRandom(s, 5) * 1.5}
             rotationDeg={rotationDeg}
             fill={pseudoRandom(s, 6) > 0.5 ? WATER_AQUA : WATER_SHINE}
           />
@@ -268,7 +268,7 @@ function WaterBlobShape({
             keyTimes={BLOB_KEY_TIMES}
             keySplines={BLOB_KEY_SPLINES}
             calcMode="spline"
-            dur="7s"
+            dur="11s"
             repeatCount="indefinite"
           />
         </path>
@@ -279,7 +279,7 @@ function WaterBlobShape({
             keyTimes={BLOB_KEY_TIMES}
             keySplines={BLOB_KEY_SPLINES}
             calcMode="spline"
-            dur="5.5s"
+            dur="8.5s"
             repeatCount="indefinite"
           />
         </path>
@@ -298,6 +298,7 @@ interface TagSim {
   y: number
   angle: number
   settled: boolean
+  formUntil: number
 }
 
 export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
@@ -328,12 +329,18 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
 
   const hasSelection = selectedTags.length > 0
 
-  // The blob swells a little more with every tag pressed, capped so it never
-  // crowds out the picker.
-  const blobRadius = Math.min(26 + selectedTags.length * 3.4, 46)
+  const tagSimRef = useRef<Map<FlavorTag, TagSim>>(new Map())
+
+  // The blob only swells once a picked tag has actually arrived and merged
+  // in — not the instant it's clicked — so growth reads as "absorbing" each
+  // one rather than jumping ahead of the animation.
+  const tagSimSnapshot = tagSimRef.current
+  const mergedCount = selectedTags.filter((tag) => tagSimSnapshot.get(tag)?.settled).length
+  const blobRadius = Math.min(26 + mergedCount * 4.2, 50)
   // How far out the whirlpool sits — comfortably inside the blob's own
-  // radius, so swirling tags never read as floating past its edge.
-  const whirlRadius = blobRadius * 0.42
+  // radius (and well clear of its edge), so swirling tags never read as
+  // floating past its bounds.
+  const whirlRadius = blobRadius * 0.32
 
   // The central blob is a fixed obstacle for the resting layout below —
   // this is what stops idle tags from ever drifting on top of it. Picked
@@ -358,18 +365,24 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   const whirlRadiusRef = useRef(whirlRadius)
   whirlRadiusRef.current = whirlRadius
 
-  const tagSimRef = useRef<Map<FlavorTag, TagSim>>(new Map())
-
   // Whenever a tag is freshly picked, start its simulation from wherever it
-  // was just resting — gravity takes it from there. Whenever one is
-  // unpicked, drop it from the sim; the render below falls back to the
-  // ordinary resting layout (with its normal CSS transition) for it.
+  // was just resting — gravity doesn't even start pulling until "formUntil"
+  // has passed, giving the blob time to visibly form around the label
+  // first. Whenever one is unpicked, drop it from the sim; the render below
+  // falls back to the ordinary resting layout (with its normal CSS
+  // transition) for it.
   useEffect(() => {
     const sim = tagSimRef.current
     for (const tag of selectedTags) {
       if (sim.has(tag)) continue
       const start = nodes.find((n) => n.tag === tag)
-      sim.set(tag, { x: start?.x ?? CENTER, y: start?.y ?? CENTER, angle: 0, settled: false })
+      sim.set(tag, {
+        x: start?.x ?? CENTER,
+        y: start?.y ?? CENTER,
+        angle: 0,
+        settled: false,
+        formUntil: performance.now() + 900,
+      })
     }
     for (const tag of Array.from(sim.keys())) {
       if (!selectedTags.includes(tag)) sim.delete(tag)
@@ -408,24 +421,32 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       for (const tag of selectedTagsRef.current) {
         const sim = tagSimRef.current.get(tag)
         if (!sim) continue
+
+        // Let the blob visibly finish forming around the label before
+        // gravity has any pull at all.
+        if (now < sim.formUntil) continue
+
         const dx = CENTER - sim.x
         const dy = CENTER - sim.y
         const dist = Math.hypot(dx, dy)
         if (!sim.settled && dist <= whirlR * 1.15) sim.settled = true
 
         if (!sim.settled) {
-          // Gravity: ease steadily in toward the core.
-          const pull = 1 - Math.pow(0.01, dt)
+          // Gravity: a slow, steady ease in toward the core — this is the
+          // "gradually pulled in" leg of the journey.
+          const pull = 1 - Math.pow(0.18, dt)
           sim.x += dx * pull
           sim.y += dy * pull
         } else {
           // Whirlpool: orbit clockwise (angle increasing is clockwise in
-          // screen space, where y points down) at a fixed radius, easing
-          // toward that rotating point rather than snapping to it.
-          sim.angle += dt * 1.7
+          // screen space, where y points down) at a fixed radius well
+          // inside the blob, easing smoothly toward that rotating point
+          // rather than snapping to it. Slow rotation reads as a gentle
+          // whirlpool, not a spin cycle.
+          sim.angle += dt * 0.55
           const tx = CENTER + whirlR * Math.cos(sim.angle)
           const ty = CENTER + whirlR * Math.sin(sim.angle)
-          const ease = 1 - Math.pow(0.0004, dt)
+          const ease = 1 - Math.pow(0.01, dt)
           sim.x += (tx - sim.x) * ease
           sim.y += (ty - sim.y) * ease
         }
@@ -447,14 +468,17 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
     }
   }
 
-  // Skip the position CSS-transition on the very first paint — without
-  // this, every node's left/top appears to animate in from the default
-  // (top-left) corner the instant the page mounts, which is the "jitters to
-  // the left" jolt.
+  // Skip the position CSS-transition for the first beat after mount —
+  // without this, every node's left/top appears to animate in from the
+  // default (top-left) corner, which is the "jitters to the left" jolt. A
+  // single rAF wasn't enough: late web-font swaps or a scrollbar appearing
+  // can still nudge layout (and so the % position's resolved pixels) a
+  // moment later, which a transition would then visibly animate. Half a
+  // second covers that settling window.
   const [settledIn, setSettledIn] = useState(false)
   useEffect(() => {
-    const id = requestAnimationFrame(() => setSettledIn(true))
-    return () => cancelAnimationFrame(id)
+    const id = window.setTimeout(() => setSettledIn(true), 500)
+    return () => window.clearTimeout(id)
   }, [])
 
   return (
