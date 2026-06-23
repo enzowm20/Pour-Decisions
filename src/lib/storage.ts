@@ -40,6 +40,37 @@ export function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
+// Re-encode an already-stored data URL down to a small JPEG. Used by the
+// startup migration to shrink photos saved before compression existed —
+// those oversized blobs fill the localStorage quota, which then silently
+// blocks ALL subsequent writes (so freshly entered scans vanish on refresh).
+export function compressDataUrl(dataUrl: string, maxEdge = 1024, quality = 0.72): Promise<string> {
+  return new Promise((resolve) => {
+    if (!dataUrl.startsWith("data:image/")) {
+      resolve(dataUrl)
+      return
+    }
+    const img = new Image()
+    img.onerror = () => resolve(dataUrl)
+    img.onload = () => {
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+      const w = Math.max(1, Math.round(img.width * scale))
+      const h = Math.max(1, Math.round(img.height * scale))
+      const canvas = document.createElement("canvas")
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        resolve(dataUrl)
+        return
+      }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.src = dataUrl
+  })
+}
+
 // Downscale + re-encode an image to a small JPEG data URL before we store it.
 // A raw phone photo is several MB; as base64 it's ~33% bigger again, so a
 // couple of them blow past the localStorage quota and used to crash the app.

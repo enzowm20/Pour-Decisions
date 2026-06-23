@@ -13,15 +13,6 @@ import FallingBottles from "../components/FallingBottles"
 import bombayBottle from "../assets/bombay-bottle.webp"
 import { type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
-const CAPS: Record<IngredientCategory, number> = {
-  spirit: 4,
-  mixer: 4,
-  citrus: 1,
-  sweetener: 2,
-  fruit: 2,
-  other: 1,
-}
-
 const LABELS: Record<IngredientCategory, string> = {
   spirit: "Spirits",
   mixer: "Mixers",
@@ -41,12 +32,6 @@ interface Combo {
 
 function hasOverlap(a: string[], b: string[]) {
   return a.some((x) => b.includes(x))
-}
-
-function pickN<T>(list: T[], n: number, offset: number): T[] {
-  const result: T[] = []
-  for (let i = 0; i < n; i++) result.push(list[(offset + i) % list.length])
-  return result
 }
 
 function signatureOf(ids: string[]) {
@@ -129,61 +114,77 @@ export default function ExperimentLabPage() {
     )
     if (spiritCandidates.length === 0) return []
 
-    const otherCategoryPools: Record<string, Ingredient[]> = {
-      mixer: byName(ingredients.filter((i) => i.category === "mixer" && flavorMatch(i))),
-      citrus: byName(ingredients.filter((i) => i.category === "citrus" && flavorMatch(i))),
-      sweetener: byName(ingredients.filter((i) => i.category === "sweetener" && flavorMatch(i))),
-      fruit: byName(ingredients.filter((i) => i.category === "fruit" && flavorMatch(i))),
-      other: byName(ingredients.filter((i) => i.category === "other" && flavorMatch(i))),
-    }
+    // Every in-stock, flavor-matching non-spirit, grouped by category.
+    const otherCategories = ["mixer", "citrus", "sweetener", "fruit", "other"] as const
+    const otherPool = byName(
+      ingredients.filter((i) => i.category !== "spirit" && flavorMatch(i)),
+    )
 
-    // Two ingredients are allowed in the same combo if they share a style tag
-    // OR if they've actually appeared together in a "worked" archive entry —
-    // the learned pairing is what lets the lab improve as you log more.
-    const compatible = (anchor: Ingredient, candidate: Ingredient) =>
-      hasOverlap(anchor.styles ?? [], candidate.styles ?? []) ||
-      isLearnedPair(pairingGraph, anchor.id, candidate.id)
+    // Do we have any archive data to lean on at all? If so, combos MUST be
+    // built from proven pairings — that's what stops random suggestions. With
+    // no archive yet, fall back to style compatibility so the page still
+    // does something, but stays just as tight.
+    const haveArchiveData = pairingGraph.size > 0
+    const learnedWith = (anchor: Ingredient, c: Ingredient) => isLearnedPair(pairingGraph, anchor.id, c.id)
+    const styleWith = (anchor: Ingredient, c: Ingredient) =>
+      hasOverlap(anchor.styles ?? [], c.styles ?? [])
+    // A candidate qualifies only if it's actually been proven alongside the
+    // anchor in the archive (preferred), or — only when there's no archive
+    // data at all — if it at least shares a cocktail style.
+    const qualifies = (anchor: Ingredient, c: Ingredient) =>
+      learnedWith(anchor, c) || (!haveArchiveData && styleWith(anchor, c))
 
-    const MAX_COMBOS = 10
-    const MAX_ATTEMPTS = 120 // higher than MAX_COMBOS since known combos get rejected and don't count
+    // Restraint: a real cocktail is a handful of ingredients, not a dozen.
+    // Hard cap the whole build small, and never more than one of each
+    // mixer/citrus/sweetener/fruit/top-up, at most two spirits.
+    const MAX_TOTAL = 4
+    const MAX_COMBOS = 8
     const seenSignatures = new Set<string>()
     const result: Combo[] = []
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS && result.length < MAX_COMBOS; attempt++) {
-      const anchor = spiritCandidates[attempt % spiritCandidates.length]
-      const offset = attempt
+    for (const anchor of spiritCandidates) {
+      if (result.length >= MAX_COMBOS) break
 
-      const bySlot: Combo["bySlot"] = {}
+      // Candidates that pair with the anchor, learned ones first so the
+      // build is anchored in what's actually worked before.
+      const partners = otherPool
+        .filter((c) => qualifies(anchor, c))
+        .sort((a, b) => Number(learnedWith(anchor, b)) - Number(learnedWith(anchor, a)))
 
-      const additionalSpirits = spiritCandidates.filter(
-        (i) => i.id !== anchor.id && compatible(anchor, i),
-      )
-      const spiritCount = Math.min(CAPS.spirit - 1, additionalSpirits.length)
-      bySlot.spirit = [anchor, ...pickN(additionalSpirits, spiritCount, offset)]
+      // A second spirit only if it's been proven with the anchor — keeps
+      // multi-spirit builds deliberate rather than scattershot.
+      const secondSpirit = spiritCandidates.find((s) => s.id !== anchor.id && learnedWith(anchor, s))
 
-      for (const category of ["mixer", "citrus", "sweetener", "fruit", "other"] as const) {
-        const pool = otherCategoryPools[category].filter((i) => compatible(anchor, i))
-        if (pool.length === 0) continue // no qualifying match — skip the slot entirely
-        const count = Math.min(CAPS[category], pool.length)
-        bySlot[category] = pickN(pool, count, offset)
+      const bySlot: Combo["bySlot"] = { spirit: [anchor] }
+      let total = 1
+      const usedCategories = new Set<string>()
+
+      if (secondSpirit && total < MAX_TOTAL) {
+        bySlot.spirit = [anchor, secondSpirit]
+        total++
       }
 
-      const allIds = Object.values(bySlot)
-        .flat()
-        .map((i) => i.id)
+      for (const c of partners) {
+        if (total >= MAX_TOTAL) break
+        if (usedCategories.has(c.category)) continue // one per non-spirit category
+        usedCategories.add(c.category)
+        bySlot[c.category as (typeof otherCategories)[number]] = [c]
+        total++
+      }
+
+      // A lone spirit isn't a suggestion worth showing.
+      if (total < 2) continue
+
+      const allIds = Object.values(bySlot).flat().map((i) => i.id)
       const signature = signatureOf(allIds)
       if (seenSignatures.has(signature)) continue
       seenSignatures.add(signature)
 
-      // Skip anything that's already a known recipe — the point of this page
-      // is to surface combinations that don't exist yet.
+      // Skip anything that already exists as an experiment or menu item —
+      // these are meant to be new.
       if (knownSignatures.has(signature)) continue
 
-      // Badge a whole proven group (2, 3, or more ingredients) rather than
-      // tagging ingredients one at a time against the anchor — this is what
-      // tells a real 3+ ingredient win apart from three separate pairs.
       const learnedIds = provenMembersWithin(provenGroups, new Set(allIds))
-
       result.push({ bySlot, learnedIds })
     }
 
@@ -216,11 +217,11 @@ export default function ExperimentLabPage() {
       <RevealOnScroll>
         <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">
-          Select flavor tags to get combinations from your stocked ingredients. Ingredients combine
-          if they share a flavor tag and either a cocktail style or a pairing you've already logged
-          as "worked" in the archive. Anything that already matches an existing experiment or menu
-          item is skipped — these are meant to be genuinely new, not a recipe you already have on
-          file.
+          Select flavor tags to get tight, deliberate combinations from your stocked ingredients.
+          Suggestions are built around pairings you've actually logged as "worked" in the archive —
+          so the more you log, the sharper these get — and are kept small (a spirit plus a few
+          partners), never a scattershot pile of ingredients. Anything that already matches an
+          existing experiment or menu item is skipped, so these stay genuinely new.
         </p>
       </RevealOnScroll>
 

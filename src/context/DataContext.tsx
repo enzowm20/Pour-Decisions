@@ -1,7 +1,11 @@
-import { createContext, useContext, type ReactNode } from "react"
-import { useLocalStorageState } from "../lib/storage"
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react"
+import { compressDataUrl, useLocalStorageState } from "../lib/storage"
 import { makeId } from "../lib/id"
 import type { Experiment, Ingredient, LabQueueItem, Recipe, Scan, Substitution, Venue } from "../types"
+
+// Anything bigger than this (a data URL noticeably larger than our own
+// freshly-compressed output) is an old uncompressed photo worth shrinking.
+const OVERSIZED_PHOTO_CHARS = 400_000
 
 interface DataContextValue {
   ingredients: Ingredient[]
@@ -59,6 +63,59 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [recipes, setRecipes] = useLocalStorageState<Recipe[]>("recipes", [])
   const [experiments, setExperiments] = useLocalStorageState<Experiment[]>("experiments", [])
   const [labQueue, setLabQueue] = useLocalStorageState<LabQueueItem[]>("labQueue", [])
+
+  // One-time-per-load migration: shrink any oversized photos left over from
+  // before image compression existed. Those blobs fill the ~5MB localStorage
+  // quota; once it's full, EVERY write fails — which is why newly entered
+  // venue scans were silently lost on refresh. Re-compressing frees the
+  // space so writes succeed again.
+  const migratedRef = useRef(false)
+  useEffect(() => {
+    if (migratedRef.current) return
+    migratedRef.current = true
+    let cancelled = false
+
+    async function shrink(urls: string[]): Promise<{ next: string[]; changed: boolean }> {
+      let changed = false
+      const next = await Promise.all(
+        urls.map(async (u) => {
+          if (u.length <= OVERSIZED_PHOTO_CHARS) return u
+          const small = await compressDataUrl(u)
+          if (small !== u && small.length < u.length) changed = true
+          return small
+        }),
+      )
+      return { next, changed }
+    }
+
+    ;(async () => {
+      const expHasBig = experiments.some((e) => e.photos.some((p) => p.length > OVERSIZED_PHOTO_CHARS))
+      const scanHasBig = scans.some((s) => s.photos.some((p) => p.length > OVERSIZED_PHOTO_CHARS))
+      if (expHasBig) {
+        const updated = await Promise.all(
+          experiments.map(async (e) => {
+            const { next, changed } = await shrink(e.photos)
+            return changed ? { ...e, photos: next } : e
+          }),
+        )
+        if (!cancelled) setExperiments(updated)
+      }
+      if (scanHasBig) {
+        const updated = await Promise.all(
+          scans.map(async (s) => {
+            const { next, changed } = await shrink(s.photos)
+            return changed ? { ...s, photos: next } : s
+          }),
+        )
+        if (!cancelled) setScans(updated)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const value: DataContextValue = {
     ingredients,
