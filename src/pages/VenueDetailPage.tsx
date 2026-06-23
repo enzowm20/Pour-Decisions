@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, useNavigate, Link } from "react-router-dom"
+import { useParams, Link } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { checkRecipe } from "../lib/recipeCheck"
 import { fileToDataUrl } from "../lib/storage"
@@ -38,7 +38,6 @@ function buildReviewIngredient(raw: string, ingredients: Ingredient[]): ReviewIn
 
 export default function VenueDetailPage() {
   const { venueId: routeVenueId } = useParams()
-  const navigate = useNavigate()
   const {
     venues,
     scans,
@@ -50,6 +49,7 @@ export default function VenueDetailPage() {
     removeRecipe,
     ingredients,
     substitutions,
+    addToLabQueue,
   } = useData()
 
   const venue = venues.find((v) => v.id === routeVenueId)
@@ -90,8 +90,8 @@ export default function VenueDetailPage() {
   }
 
   const handleSendToLab = (recipe: { name: string; ingredientIds: string[] }) => {
-    const params = new URLSearchParams({ name: recipe.name, ingredients: recipe.ingredientIds.join(",") })
-    navigate(`/lab?${params.toString()}`)
+    addToLabQueue({ name: recipe.name, ingredientIds: recipe.ingredientIds })
+    setSaveStatus(`"${recipe.name}" sent to the Experiment Lab queue.`)
   }
 
   const handleStartBlankScan = () => {

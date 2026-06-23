@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from "react"
 import { useLocalStorageState } from "../lib/storage"
 import { makeId } from "../lib/id"
-import type { Experiment, Ingredient, Recipe, Scan, Substitution, Venue } from "../types"
+import type { Experiment, Ingredient, LabQueueItem, Recipe, Scan, Substitution, Venue } from "../types"
 
 interface DataContextValue {
   ingredients: Ingredient[]
@@ -36,6 +36,13 @@ interface DataContextValue {
   // missingIngredientNames — used to delete a flagged entry outright rather
   // than just hiding it.
   deleteFlaggedIngredientName: (name: string) => void
+
+  // Recipes sent over from a venue scan via "Send to Experiment Lab" — they
+  // land here instead of jumping the user straight to that page, so they
+  // show up under a heading there to review whenever they get to it.
+  labQueue: LabQueueItem[]
+  addToLabQueue: (data: Omit<LabQueueItem, "id">) => LabQueueItem
+  removeFromLabQueue: (id: string) => void
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -50,6 +57,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [scans, setScans] = useLocalStorageState<Scan[]>("scans", [])
   const [recipes, setRecipes] = useLocalStorageState<Recipe[]>("recipes", [])
   const [experiments, setExperiments] = useLocalStorageState<Experiment[]>("experiments", [])
+  const [labQueue, setLabQueue] = useLocalStorageState<LabQueueItem[]>("labQueue", [])
 
   const value: DataContextValue = {
     ingredients,
@@ -123,6 +131,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }),
       )
     },
+
+    labQueue,
+    addToLabQueue: (data) => {
+      const item = { ...data, id: makeId() }
+      setLabQueue((prev) => [...prev, item])
+      return item
+    },
+    removeFromLabQueue: (id) => setLabQueue((prev) => prev.filter((i) => i.id !== id)),
   }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

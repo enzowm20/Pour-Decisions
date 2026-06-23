@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
@@ -18,6 +18,7 @@ const CAPS: Record<IngredientCategory, number> = {
   mixer: 4,
   citrus: 1,
   sweetener: 2,
+  fruit: 2,
   other: 1,
 }
 
@@ -26,11 +27,12 @@ const LABELS: Record<IngredientCategory, string> = {
   mixer: "Mixers",
   citrus: "Citrus",
   sweetener: "Sweeteners",
+  fruit: "Fruit",
   other: "Top-up",
 }
 
 // Render order for whichever categories happen to be present in a combo.
-const DISPLAY_ORDER: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "other"]
+const DISPLAY_ORDER: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "fruit", "other"]
 
 interface Combo {
   bySlot: Partial<Record<IngredientCategory, Ingredient[]>>
@@ -52,9 +54,8 @@ function signatureOf(ids: string[]) {
 }
 
 export default function ExperimentLabPage() {
-  const { ingredients, experiments, recipes, substitutions } = useData()
+  const { ingredients, experiments, recipes, substitutions, labQueue, removeFromLabQueue } = useData()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
   const [revealedTags, setRevealedTags] = useState<FlavorTag[]>([])
   const [isThinking, setIsThinking] = useState(false)
@@ -98,13 +99,16 @@ export default function ExperimentLabPage() {
     return sigs
   }, [experiments, recipes])
 
-  const stagedName = searchParams.get("name")
-  const stagedIngredientIds = searchParams.get("ingredients")?.split(",").filter(Boolean) ?? []
-  const stagedRecipe =
-    stagedName && stagedIngredientIds.length > 0
-      ? { id: "staged", name: stagedName, venueId: null, scanId: null, ingredientIds: stagedIngredientIds }
-      : null
-  const stagedResult = stagedRecipe ? checkRecipe(stagedRecipe, ingredients, substitutions) : null
+  // Recipes sent over from a venue scan, waiting here under their own
+  // heading rather than having jumped the user straight to this page.
+  const queuedResults = labQueue.map((item) => ({
+    item,
+    result: checkRecipe(
+      { id: item.id, name: item.name, venueId: null, scanId: null, ingredientIds: item.ingredientIds },
+      ingredients,
+      substitutions,
+    ),
+  }))
 
   function toggleTag(tag: FlavorTag) {
     setSelectedTags((prev) =>
@@ -126,6 +130,7 @@ export default function ExperimentLabPage() {
       mixer: byName(ingredients.filter((i) => i.category === "mixer" && flavorMatch(i))),
       citrus: byName(ingredients.filter((i) => i.category === "citrus" && flavorMatch(i))),
       sweetener: byName(ingredients.filter((i) => i.category === "sweetener" && flavorMatch(i))),
+      fruit: byName(ingredients.filter((i) => i.category === "fruit" && flavorMatch(i))),
       other: byName(ingredients.filter((i) => i.category === "other" && flavorMatch(i))),
     }
 
@@ -153,7 +158,7 @@ export default function ExperimentLabPage() {
       const spiritCount = Math.min(CAPS.spirit - 1, additionalSpirits.length)
       bySlot.spirit = [anchor, ...pickN(additionalSpirits, spiritCount, offset)]
 
-      for (const category of ["mixer", "citrus", "sweetener", "other"] as const) {
+      for (const category of ["mixer", "citrus", "sweetener", "fruit", "other"] as const) {
         const pool = otherCategoryPools[category].filter((i) => compatible(anchor, i))
         if (pool.length === 0) continue // no qualifying match — skip the slot entirely
         const count = Math.min(CAPS[category], pool.length)
@@ -194,11 +199,10 @@ export default function ExperimentLabPage() {
     navigate(`/archive?${params.toString()}`)
   }
 
-  function tryStaged() {
-    if (!stagedRecipe) return
+  function tryQueued(item: { name: string; ingredientIds: string[] }) {
     const params = new URLSearchParams({
-      name: stagedRecipe.name,
-      ingredients: stagedRecipe.ingredientIds.join(","),
+      name: item.name,
+      ingredients: item.ingredientIds.join(","),
     })
     navigate(`/archive?${params.toString()}`)
   }
@@ -217,49 +221,69 @@ export default function ExperimentLabPage() {
         </p>
       </RevealOnScroll>
 
-      {stagedRecipe && stagedResult && (
-        <div className="mb-6 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
-          <div className="mb-2 flex items-start justify-between gap-2">
-            <div>
-              <p className="text-xs text-[var(--cream-dim)]">Sent from a venue scan</p>
-              <p className="text-sm font-medium">{stagedRecipe.name}</p>
-            </div>
-            <StatusBadge status={stagedResult.status} />
-          </div>
-          <p className="mb-2 text-xs text-[var(--cream-dim)]">
-            {stagedResult.items.map((item, i) => (
-              <span key={i}>
-                {i > 0 ? ", " : ""}
-                {item.status === "have" ? (
-                  item.ingredient.name
-                ) : (
-                  <span className="text-[var(--cream-dim)] line-through">{item.ingredient.name}</span>
-                )}
-              </span>
-            ))}
+      {queuedResults.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-1 text-sm font-medium">Sent from venue scans ({queuedResults.length})</p>
+          <p className="mb-3 text-xs text-[var(--cream-dim)]">
+            Recipes you sent over from a venue scan, waiting here for you to review whenever you
+            get to it.
           </p>
-          {stagedResult.items.some((i) => i.status === "substitute") && (
-            <p className="mb-2 text-xs text-[var(--cream-dim)]">
-              {stagedResult.items
-                .filter((i) => i.status === "substitute")
-                .map((i) => `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`)
-                .join(". ")}
-              . Add more swaps below if something else is missing.
-            </p>
-          )}
-          {stagedResult.toPurchase.length > 0 && (
-            <p className="mb-2 text-xs text-[var(--cream-dim)]">
-              No substitute on file for {stagedResult.toPurchase.map((i) => i.name).join(", ")} —
-              add one below, or buy it to make this as written.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={tryStaged}
-            className="h-8 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90"
-          >
-            Try this
-          </button>
+          <div className="space-y-3">
+            {queuedResults.map(({ item, result }) => (
+              <div
+                key={item.id}
+                className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium">{item.name}</p>
+                  <StatusBadge status={result.status} />
+                </div>
+                <p className="mb-2 text-xs text-[var(--cream-dim)]">
+                  {result.items.map((i, idx) => (
+                    <span key={idx}>
+                      {idx > 0 ? ", " : ""}
+                      {i.status === "have" ? (
+                        i.ingredient.name
+                      ) : (
+                        <span className="text-[var(--cream-dim)] line-through">{i.ingredient.name}</span>
+                      )}
+                    </span>
+                  ))}
+                </p>
+                {result.items.some((i) => i.status === "substitute") && (
+                  <p className="mb-2 text-xs text-[var(--cream-dim)]">
+                    {result.items
+                      .filter((i) => i.status === "substitute")
+                      .map((i) => `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`)
+                      .join(". ")}
+                    . Add more swaps below if something else is missing.
+                  </p>
+                )}
+                {result.toPurchase.length > 0 && (
+                  <p className="mb-2 text-xs text-[var(--cream-dim)]">
+                    No substitute on file for {result.toPurchase.map((i) => i.name).join(", ")} —
+                    add one below, or buy it to make this as written.
+                  </p>
+                )}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => tryQueued(item)}
+                    className="h-8 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90"
+                  >
+                    Try this
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeFromLabQueue(item.id)}
+                    className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -1,10 +1,11 @@
-export type IngredientCategory = "spirit" | "mixer" | "citrus" | "sweetener" | "other"
+export type IngredientCategory = "spirit" | "mixer" | "citrus" | "sweetener" | "fruit" | "other"
 
 export const CATEGORY_LABELS: Record<IngredientCategory, string> = {
   spirit: "Spirit",
   mixer: "Mixer",
   citrus: "Citrus",
   sweetener: "Sweetener",
+  fruit: "Fruit",
   other: "Top-up",
 }
 
@@ -103,6 +104,15 @@ export interface Recipe {
   missingIngredientNames?: string[]
   menuCategory?: MenuCategory // only meaningful when venueId is null; defaults to "core"
   sellPrice?: number
+}
+
+// A recipe sent over from a venue scan via "Send to Experiment Lab" — queued
+// here rather than navigating straight there, so it shows up under a
+// heading on that page to review whenever you get to it.
+export interface LabQueueItem {
+  id: string
+  name: string
+  ingredientIds: string[]
 }
 
 export type ExperimentOutcome = "worked" | "needs-work" | "failed"

@@ -8,7 +8,7 @@ interface Props {
   onChange: (ids: string[]) => void
 }
 
-const CATEGORY_ORDER: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "other"]
+const CATEGORY_ORDER: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "fruit", "other"]
 
 export default function IngredientPicker({ ingredients, selectedIds, onChange }: Props) {
   function toggle(id: string) {

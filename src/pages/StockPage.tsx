@@ -16,7 +16,7 @@ import {
   type StyleTag,
 } from "../types"
 
-const categories: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "other"]
+const categories: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "fruit", "other"]
 
 // Sub-groups within the Spirit category, in display order. Matched by
 // keyword against the ingredient name — no extra field to maintain, but it's
