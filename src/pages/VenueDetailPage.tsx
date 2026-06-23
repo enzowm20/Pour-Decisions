@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { checkRecipe } from "../lib/recipeCheck"
-import { fileToDataUrl } from "../lib/storage"
+import { fileToCompressedImage } from "../lib/storage"
 import { byName } from "../lib/sort"
 import { extractTextFromFile } from "../lib/textExtraction"
 import { parseMenuText } from "../lib/menuParser"
@@ -149,7 +149,7 @@ export default function VenueDetailPage() {
     try {
       const [text, photoDataUrl] = await Promise.all([
         extractTextFromFile(file),
-        file.type.startsWith("image/") ? fileToDataUrl(file) : Promise.resolve(null),
+        file.type.startsWith("image/") ? fileToCompressedImage(file) : Promise.resolve(null),
       ])
       setPendingPhoto(photoDataUrl)
       setRawText(text)

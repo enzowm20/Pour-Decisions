@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useData } from "../context/DataContext"
-import { fileToDataUrl } from "../lib/storage"
+import { fileToCompressedImage } from "../lib/storage"
 import { byName } from "../lib/sort"
 import IngredientPicker from "../components/IngredientPicker"
 import FallingBottles from "../components/FallingBottles"
@@ -40,7 +40,7 @@ export default function ArchivePage() {
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    const urls = await Promise.all(files.map(fileToDataUrl))
+    const urls = await Promise.all(files.map((f) => fileToCompressedImage(f)))
     setPhotos((prev) => [...prev, ...urls])
   }
 
