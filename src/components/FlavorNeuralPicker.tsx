@@ -221,7 +221,23 @@ function OrbitDroplets({ anchor, t, seed, count = 5 }: { anchor: { x: number; y:
 // edges into a single body, the classic metaball trick. This is what makes
 // separate blobs read as pooling together via surface tension rather than
 // being joined by a drawn connector.
-function WaterBlobShape({ cx, cy, radius, seed, active, sweep }: { cx: number; cy: number; radius: number; seed: number; active: boolean; sweep?: boolean }) {
+function WaterBlobShape({
+  cx,
+  cy,
+  radius,
+  seed,
+  active,
+  sweep,
+  stretchX = 1,
+}: {
+  cx: number
+  cy: number
+  radius: number
+  seed: number
+  active: boolean
+  sweep?: boolean
+  stretchX?: number
+}) {
   const REF_R = 20
   const variants = useMemo(() => [0, 1, 2, 3].map((v) => blobPath(0, 0, REF_R, seed, v)), [seed])
   const values = `${variants.join(";")};${variants[0]}`
@@ -231,7 +247,10 @@ function WaterBlobShape({ cx, cy, radius, seed, active, sweep }: { cx: number; c
 
   return (
     <g transform={`translate(${cx} ${cy})`}>
-      <g className="water-blob-scale" style={{ transform: `scale(${scale})` } as React.CSSProperties}>
+      <g
+        className="water-blob-scale"
+        style={{ transform: `scale(${scale * stretchX}, ${scale})` } as React.CSSProperties}
+      >
         <defs>
           <radialGradient id={gradId} cx="35%" cy="30%" r="75%">
             <stop offset="0%" stopColor={WATER_SHINE} stopOpacity={0.9} />
@@ -427,9 +446,26 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
             const pos = activePositions.get(tag)
             if (!pos) return null
             const tagSeed = tag.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + i * 17
+            // Sized and stretched to actually engulf the label (longer words
+            // need a wider, not just bigger, blob), then bridged toward the
+            // core with a couple of smaller in-between blobs along the same
+            // line — all sharing the goo filter, so the whole chain reads as
+            // one body reaching out and pooling back into the center rather
+            // than a separate satellite sitting next to it.
+            const textRadius = 13
+            const stretchX = Math.min(1.5 + tag.length * 0.22, 4.2)
+            const bridges = [0.34, 0.68].map((t, k) => ({
+              x: pos.x + (CENTER - pos.x) * t,
+              y: pos.y + (CENTER - pos.y) * t,
+              r: textRadius * (1 - t) + blobRadius * 0.55 * t,
+              seed: tagSeed + k * 31 + 5,
+            }))
             return (
               <g key={`node-blob-${tag}`} className="blob-pop-in">
-                <WaterBlobShape cx={pos.x} cy={pos.y} radius={13} seed={tagSeed} active sweep />
+                <WaterBlobShape cx={pos.x} cy={pos.y} radius={textRadius} seed={tagSeed} active sweep stretchX={stretchX} />
+                {bridges.map((b) => (
+                  <WaterBlobShape key={b.seed} cx={b.x} cy={b.y} radius={b.r} seed={b.seed} active />
+                ))}
               </g>
             )
           })}
@@ -473,7 +509,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
                 "--ampy": `${ampY}px`,
               } as React.CSSProperties
             }
-            className="neuron-float absolute"
+            className={`absolute ${isActive ? "tag-swirl" : "neuron-float"}`}
           >
             <button
               type="button"
