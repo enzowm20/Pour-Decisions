@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { FLAVOR_TAGS, type FlavorTag } from "../types"
 
 const VIEW = 380
@@ -145,27 +145,33 @@ function smoothClosedPath(points: { x: number; y: number }[]) {
   return `${d} Z`
 }
 
-// An irregular blob outline: a variable number of points scattered around a
-// circle at uneven radii, with the whole circle's center drifting off-axis
-// per variant — so successive morph frames don't just breathe symmetrically,
-// they actually slosh, and different frames can have entirely different
-// silhouette complexity rather than the same N points moving in place.
+// An irregular blob outline: the SAME point count every time (so SMIL can
+// actually interpolate point-for-point between morph frames — a varying
+// count just snaps from shape to shape), but each point's radius wobbles
+// independently and the whole outline's center drifts off-axis per variant,
+// so it sloshes asymmetrically rather than breathing in and out evenly.
+const BLOB_POINTS = 9
 function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: number) {
-  const points = 7 + Math.floor(pseudoRandom(seed, variant * 53) * 5)
   const driftAngle = pseudoRandom(seed, variant * 61) * Math.PI * 2
   const driftMag = baseR * 0.2 * pseudoRandom(seed, variant * 71)
   const ccx = cx + Math.cos(driftAngle) * driftMag
   const ccy = cy + Math.sin(driftAngle) * driftMag
 
   const pts = []
-  for (let i = 0; i < points; i++) {
-    const angle = (i / points) * Math.PI * 2
-    const wobble = 0.42 + pseudoRandom(seed, variant * 97 + i * 7) * 1.1
+  for (let i = 0; i < BLOB_POINTS; i++) {
+    const angle = (i / BLOB_POINTS) * Math.PI * 2
+    const wobble = 0.5 + pseudoRandom(seed, variant * 97 + i * 7) * 0.9
     const r = baseR * wobble
     pts.push({ x: ccx + r * Math.cos(angle), y: ccy + r * Math.sin(angle) })
   }
   return smoothClosedPath(pts)
 }
+
+// Even, eased timing for a 5-keyframe SMIL loop (4 variants + the repeat of
+// the first) — without this, the default linear pacing between very
+// different shapes reads as a snap rather than a slosh.
+const BLOB_KEY_TIMES = "0;0.25;0.5;0.75;1"
+const BLOB_KEY_SPLINES = "0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1"
 
 // A filled river/blob shape running along a curve between two points,
 // tapered near both ends but bulging and pinching erratically in between —
@@ -220,6 +226,38 @@ function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx:
                 animationDelay: `${pseudoRandom(s, 6) * 3}s`,
               } as React.CSSProperties
             }
+          />
+        )
+      })}
+    </>
+  )
+}
+
+// A small cluster of droplets that orbit a lagged "anchor" point — the
+// anchor itself eases toward the cursor (or back to the blob's own center
+// once the cursor leaves) like a satellite system being towed around, while
+// each droplet spins around that anchor at its own radius/speed/phase so the
+// whole group reads as orbiting rather than just trailing behind the mouse.
+function OrbitDroplets({ anchor, t, seed, count = 5 }: { anchor: { x: number; y: number }; t: number; seed: number; count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => {
+        const s = seed + i * 19
+        const speed = 0.7 + pseudoRandom(s, 1) * 0.7
+        const radius = 22 + pseudoRandom(s, 2) * 16
+        const squash = 0.55 + pseudoRandom(s, 3) * 0.3
+        const phase = pseudoRandom(s, 4) * Math.PI * 2
+        const angle = phase + t * speed
+        const x = anchor.x + radius * Math.cos(angle)
+        const y = anchor.y + radius * Math.sin(angle) * squash
+        return (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r={1.6 + pseudoRandom(s, 5) * 1.6}
+            fill={pseudoRandom(s, 6) > 0.5 ? WATER_AQUA : WATER_SHINE}
+            className="orbit-droplet"
           />
         )
       })}
@@ -296,10 +334,26 @@ function WaterBlob({ cx, cy, radius, seed, active }: { cx: number; cy: number; r
           </radialGradient>
         </defs>
         <path d={variants[0]} fill={WATER_DEEP} opacity={active ? 0.35 : 0.18} className="water-blob-glow">
-          <animate attributeName="d" values={values} dur="7s" repeatCount="indefinite" />
+          <animate
+            attributeName="d"
+            values={values}
+            keyTimes={BLOB_KEY_TIMES}
+            keySplines={BLOB_KEY_SPLINES}
+            calcMode="spline"
+            dur="7s"
+            repeatCount="indefinite"
+          />
         </path>
         <path d={variants[0]} fill={`url(#${gradId})`} className="water-blob-body">
-          <animate attributeName="d" values={values} dur="5.5s" repeatCount="indefinite" />
+          <animate
+            attributeName="d"
+            values={values}
+            keyTimes={BLOB_KEY_TIMES}
+            keySplines={BLOB_KEY_SPLINES}
+            calcMode="spline"
+            dur="5.5s"
+            repeatCount="indefinite"
+          />
         </path>
       </g>
       {[0, 1, 2].map((i) => {
@@ -387,23 +441,52 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   const blobRadius = Math.min(15 + selectedTags.length * 3.4, 34)
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
+  const cursorRef = useRef<{ x: number; y: number } | null>(null)
+  const [orbit, setOrbit] = useState({ x: CENTER, y: CENTER, t: 0 })
+
+  // The orbit anchor eases toward the cursor (read from a ref, not state, so
+  // mouse-move events don't themselves trigger renders) — and eases back to
+  // the blob's own center once the cursor leaves, which is what makes the
+  // droplets read as originating from the blob rather than just trailing
+  // the pointer everywhere it goes.
+  useEffect(() => {
+    let raf = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.05)
+      last = now
+      setOrbit((prev) => {
+        const target = cursorRef.current ?? { x: CENTER, y: CENTER }
+        const ease = 1 - Math.pow(0.0008, dt)
+        return {
+          x: prev.x + (target.x - prev.x) * ease,
+          y: prev.y + (target.y - prev.y) * ease,
+          t: prev.t + dt,
+        }
+      })
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     const el = containerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    setCursor({
+    cursorRef.current = {
       x: ((e.clientX - rect.left) / rect.width) * VIEW,
       y: ((e.clientY - rect.top) / rect.height) * VIEW,
-    })
+    }
   }
 
   return (
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => setCursor(null)}
+      onMouseLeave={() => {
+        cursorRef.current = null
+      }}
       className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible"
     >
       <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
@@ -426,26 +509,27 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
           }),
         )}
 
-        {/* A river chasing the cursor — reaches out from the blob toward
-            wherever the mouse is, reshaping continuously since the curve's
-            own seed is derived from the live cursor position. */}
-        {cursor &&
-          (() => {
-            const dx = cursor.x - CENTER
-            const dy = cursor.y - CENTER
-            const len = Math.hypot(dx, dy) || 1
-            const ux = dx / len
-            const uy = dy / len
-            const edgeX = CENTER + ux * blobRadius
-            const edgeY = CENTER + uy * blobRadius
-            const chaseSeed = Math.floor(cursor.x * 3 + cursor.y * 7)
-            return (
-              <>
-                <LiquidLink from={{ x: CENTER, y: CENTER }} to={cursor} seed={chaseSeed} />
-                <Droplets x={edgeX} y={edgeY} nx={ux} ny={uy} seed={chaseSeed + 500} count={3} />
-              </>
-            )
-          })()}
+        {/* Droplets originating from the blob, orbiting a lagged anchor that
+            eases toward the cursor — no river here, just water lazily
+            trailing wherever you point, like little satellites being towed
+            around. */}
+        <OrbitDroplets anchor={{ x: orbit.x, y: orbit.y }} t={orbit.t} seed={11} count={5} />
+
+        {/* Each picked tag gets its own small blob — same shading and morph
+            style as the central one — sitting right where its label has
+            gravitated to, joined back to the core by a river. Together with
+            the core's own growth, this is the "pooling" effect: more, and
+            bigger, body of liquid the more you pick. */}
+        {selectedTags.map((tag, i) => {
+          const pos = activePositions.get(tag)
+          if (!pos) return null
+          const tagSeed = tag.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + i * 17
+          return (
+            <g key={`node-blob-${tag}`} className="blob-pop-in">
+              <WaterBlob cx={pos.x} cy={pos.y} radius={10} seed={tagSeed} active />
+            </g>
+          )
+        })}
 
         <WaterBlob cx={CENTER} cy={CENTER} radius={blobRadius} seed={7} active={hasSelection} />
       </svg>
