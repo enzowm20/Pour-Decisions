@@ -61,6 +61,7 @@ export default function ExperimentLabPage() {
   const [isThinking, setIsThinking] = useState(false)
   const thinkingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showAllQueued, setShowAllQueued] = useState(false)
+  const [showAllCombos, setShowAllCombos] = useState(false)
 
   // Gimmick: don't reveal suggestions the instant a tag is picked — let the
   // neural picker "think" for a random 5-10s stretch first, like it's
@@ -79,6 +80,7 @@ export default function ExperimentLabPage() {
     thinkingTimeout.current = setTimeout(() => {
       setRevealedTags(selectedTags)
       setIsThinking(false)
+      setShowAllCombos(false)
     }, delay)
 
     return () => {
@@ -243,7 +245,7 @@ export default function ExperimentLabPage() {
       )}
 
       <div className="space-y-3">
-        {!isThinking && combos.map((combo, i) => {
+        {!isThinking && combos.slice(0, showAllCombos ? undefined : 1).map((combo, i) => {
           const presentCategories = DISPLAY_ORDER.filter((c) => (combo.bySlot[c] ?? []).length > 0)
           return (
             <RevealOnScroll
@@ -296,6 +298,15 @@ export default function ExperimentLabPage() {
             No new combinations available yet — either nothing in stock is tagged with these
             flavors, or every match already exists in your archive or a menu.
           </p>
+        )}
+        {!isThinking && !showAllCombos && combos.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setShowAllCombos(true)}
+            className="text-xs text-[var(--teal)] hover:underline"
+          >
+            More ({combos.length - 1})
+          </button>
         )}
       </div>
 

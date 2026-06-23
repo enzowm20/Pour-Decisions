@@ -46,6 +46,7 @@ export default function VenueDetailPage() {
     removeScan,
     recipes,
     addRecipe,
+    updateRecipe,
     removeRecipe,
     ingredients,
     substitutions,
@@ -57,6 +58,12 @@ export default function VenueDetailPage() {
   const [activeScanId, setActiveScanId] = useState<string | null>(null)
   const [recipeName, setRecipeName] = useState("")
   const [recipeIngredientIds, setRecipeIngredientIds] = useState<string[]>([])
+
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editIngredientIds, setEditIngredientIds] = useState<string[]>([])
+
+  const [confirmRemoveScanId, setConfirmRemoveScanId] = useState<string | null>(null)
 
   const [isProcessing, setIsProcessing] = useState(false)
   const [parseError, setParseError] = useState("")
@@ -88,6 +95,31 @@ export default function VenueDetailPage() {
     })
     setRecipeName("")
     setRecipeIngredientIds([])
+  }
+
+  function startEditRecipe(recipe: { id: string; name: string; ingredientIds: string[] }) {
+    setEditingRecipeId(recipe.id)
+    setEditName(recipe.name)
+    setEditIngredientIds(recipe.ingredientIds)
+  }
+
+  function saveEditRecipe() {
+    if (!editingRecipeId || !editName.trim()) return
+    const byId = new Map(ingredients.map((i) => [i.id, i]))
+    const sorted = [...editIngredientIds].sort((a, b) =>
+      (byId.get(a)?.name ?? "").localeCompare(byId.get(b)?.name ?? ""),
+    )
+    updateRecipe(editingRecipeId, { name: editName.trim(), ingredientIds: sorted })
+    setEditingRecipeId(null)
+  }
+
+  function handleRemoveScan(scanId: string) {
+    if (confirmRemoveScanId !== scanId) {
+      setConfirmRemoveScanId(scanId)
+      return
+    }
+    removeScan(scanId)
+    setConfirmRemoveScanId(null)
   }
 
   const handleSendToLab = (recipe: { name: string; ingredientIds: string[] }) => {
@@ -521,10 +553,15 @@ export default function VenueDetailPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => removeScan(scan.id)}
-                    className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                    onClick={() => handleRemoveScan(scan.id)}
+                    onBlur={() => setConfirmRemoveScanId((prev) => (prev === scan.id ? null : prev))}
+                    className={`text-xs ${
+                      confirmRemoveScanId === scan.id
+                        ? "font-medium text-[var(--berry)]"
+                        : "text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                    }`}
                   >
-                    Remove scan
+                    {confirmRemoveScanId === scan.id ? "Click again to confirm" : "Remove scan"}
                   </button>
                 </div>
               </div>
@@ -548,79 +585,121 @@ export default function VenueDetailPage() {
                 {scanRecipes.map((recipe) => {
                   const result = checkRecipe(recipe, ingredients, substitutions)
                   const missingNames = recipe.missingIngredientNames ?? []
+                  const isEditing = editingRecipeId === recipe.id
                   return (
                     <div key={recipe.id} className="rounded-md border border-[var(--cream-dim)]/15 p-3">
-                      <div className="mb-1 flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium">{recipe.name}</p>
-                          <p className="text-xs text-[var(--cream-dim)]">
-                            {result.items.map((item, i) => (
-                              <span key={i}>
-                                {i > 0 ? ", " : ""}
-                                {item.status === "missing" ? (
-                                  <span className="text-[var(--cream-dim)] line-through">
-                                    {item.ingredient.name}
-                                  </span>
-                                ) : item.status === "substitute" ? (
-                                  <span className="text-[var(--cream-dim)] line-through">
-                                    {item.ingredient.name}
-                                  </span>
-                                ) : (
-                                  item.ingredient.name
-                                )}
-                              </span>
-                            ))}
-                            {missingNames.length > 0 && (
-                              <>
-                                {result.items.length > 0 ? ", " : ""}
-                                <span className="italic text-[var(--berry)]">
-                                  {missingNames.join(", ")} (not in stock)
-                                </span>
-                              </>
-                            )}
-                          </p>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <input
+                            className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)]"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                          />
+                          <IngredientPicker
+                            ingredients={ingredients}
+                            selectedIds={editIngredientIds}
+                            onChange={setEditIngredientIds}
+                          />
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={saveEditRecipe}
+                              disabled={!editName.trim()}
+                              className="h-8 rounded-md bg-[var(--primary)] px-3 text-xs font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingRecipeId(null)}
+                              className="text-xs text-[var(--cream-dim)] hover:text-[var(--cream)]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        <StatusBadge status={missingNames.length > 0 ? "purchase" : result.status} />
-                      </div>
-                      {result.items.some((i) => i.status === "substitute") && (
-                        <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
-                          {result.items
-                            .filter((i) => i.status === "substitute")
-                            .map(
-                              (i) =>
-                                `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`,
-                            )
-                            .join(". ")}
-                        </p>
+                      ) : (
+                        <>
+                          <div className="mb-1 flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">{recipe.name}</p>
+                              <p className="text-xs text-[var(--cream-dim)]">
+                                {result.items.map((item, i) => (
+                                  <span key={i}>
+                                    {i > 0 ? ", " : ""}
+                                    {item.status === "missing" ? (
+                                      <span className="text-[var(--cream-dim)] line-through">
+                                        {item.ingredient.name}
+                                      </span>
+                                    ) : item.status === "substitute" ? (
+                                      <span className="text-[var(--cream-dim)] line-through">
+                                        {item.ingredient.name}
+                                      </span>
+                                    ) : (
+                                      item.ingredient.name
+                                    )}
+                                  </span>
+                                ))}
+                                {missingNames.length > 0 && (
+                                  <>
+                                    {result.items.length > 0 ? ", " : ""}
+                                    <span className="italic text-[var(--berry)]">
+                                      {missingNames.join(", ")} (not in stock)
+                                    </span>
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                            <StatusBadge status={missingNames.length > 0 ? "purchase" : result.status} />
+                          </div>
+                          {result.items.some((i) => i.status === "substitute") && (
+                            <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
+                              {result.items
+                                .filter((i) => i.status === "substitute")
+                                .map(
+                                  (i) =>
+                                    `We have ${i.substitute?.name} — use it in place of ${i.ingredient.name}`,
+                                )
+                                .join(". ")}
+                            </p>
+                          )}
+                          {result.toPurchase.length > 0 && (
+                            <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
+                              No substitute on file — buy{" "}
+                              {result.toPurchase.map((i) => i.name).join(", ")} to make this
+                            </p>
+                          )}
+                          {missingNames.length > 0 && (
+                            <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
+                              Not in your stock at all — flagged on the Experiment Lab page:{" "}
+                              {missingNames.join(", ")}
+                            </p>
+                          )}
+                          <div className="mt-2 flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => startEditRecipe(recipe)}
+                              className="text-xs text-[var(--teal)] hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSendToLab(recipe)}
+                              className="text-xs text-[var(--teal)] hover:underline"
+                            >
+                              Send to Experiment Lab
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeRecipe(recipe.id)}
+                              className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </>
                       )}
-                      {result.toPurchase.length > 0 && (
-                        <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
-                          No substitute on file — buy{" "}
-                          {result.toPurchase.map((i) => i.name).join(", ")} to make this
-                        </p>
-                      )}
-                      {missingNames.length > 0 && (
-                        <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">
-                          Not in your stock at all — flagged on the Experiment Lab page:{" "}
-                          {missingNames.join(", ")}
-                        </p>
-                      )}
-                      <div className="mt-2 flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSendToLab(recipe)}
-                          className="text-xs text-[var(--teal)] hover:underline"
-                        >
-                          Send to Experiment Lab
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeRecipe(recipe.id)}
-                          className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                        >
-                          Remove
-                        </button>
-                      </div>
                     </div>
                   )
                 })}
