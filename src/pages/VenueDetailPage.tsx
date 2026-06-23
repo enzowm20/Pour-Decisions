@@ -178,6 +178,21 @@ export default function VenueDetailPage() {
     })
   }
 
+  function resolveManually(recipeIndex: number, ingredientIndex: number, stockId: string) {
+    setReviewRecipes((prev) => {
+      if (!prev) return null
+      return prev.map((r, ri) => {
+        if (ri !== recipeIndex) return r
+        return {
+          ...r,
+          ingredients: r.ingredients.map((ing, ii) =>
+            ii === ingredientIndex ? { raw: ing.raw, resolvedId: stockId } : ing,
+          ),
+        }
+      })
+    })
+  }
+
   function removeReviewIngredient(recipeIndex: number, ingredientIndex: number) {
     setReviewRecipes((prev) => {
       if (!prev) return null
@@ -219,6 +234,8 @@ export default function VenueDetailPage() {
       photos: pendingPhoto ? [pendingPhoto] : [],
     })
 
+    const byId = new Map(ingredients.map((i) => [i.id, i]))
+
     for (const r of included) {
       const ingredientIds: string[] = []
       const missingIngredientNames: string[] = []
@@ -226,6 +243,10 @@ export default function VenueDetailPage() {
         if (ing.resolvedId) ingredientIds.push(ing.resolvedId)
         else missingIngredientNames.push(ing.raw)
       }
+      // Alphabetical rather than save order, so the recipe reads the same
+      // regardless of which ingredient line happened to get confirmed first.
+      ingredientIds.sort((a, b) => (byId.get(a)?.name ?? "").localeCompare(byId.get(b)?.name ?? ""))
+      missingIngredientNames.sort((a, b) => a.localeCompare(b))
       addRecipe({
         name: r.name.trim(),
         venueId,
@@ -380,6 +401,24 @@ export default function VenueDetailPage() {
                           >
                             No
                           </button>
+                        </>
+                      ) : ing.rejected ? (
+                        <>
+                          <span className="italic text-[var(--cream-dim)]">{ing.raw} —</span>
+                          <select
+                            className="h-7 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) resolveManually(ri, ii, e.target.value)
+                            }}
+                          >
+                            <option value="">Select from stock...</option>
+                            {byName(ingredients).map((stockIng) => (
+                              <option key={stockIng.id} value={stockIng.id}>
+                                {stockIng.name}
+                              </option>
+                            ))}
+                          </select>
                         </>
                       ) : (
                         <span className="italic text-[var(--cream-dim)]">{ing.raw} (not in stock)</span>
