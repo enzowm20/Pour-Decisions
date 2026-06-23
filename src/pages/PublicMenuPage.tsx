@@ -81,12 +81,15 @@ export default function PublicMenuPage() {
             {menuRecipes.map((recipe, i) => {
               const photo = photoByName.get(recipe.name.toLowerCase())
               return (
-                <RevealOnScroll key={recipe.id} delay={Math.min(i, 8) * 60} className="p-4">
-                  {/* Description sits in its own full-width block above the
-                      photo — never side-by-side with it — so long ingredient
-                      lists always wrap onto their own line instead of
-                      crowding the image. */}
-                  <div className="mb-3">
+                <RevealOnScroll
+                  key={recipe.id}
+                  delay={Math.min(i, 8) * 60}
+                  className="flex flex-wrap items-start justify-between gap-4 p-4"
+                >
+                  {/* Description on the left; it gets the remaining width and
+                      wraps freely, so long ingredient lists never crowd the
+                      fixed-size photo over on the right. */}
+                  <div className="min-w-[180px] flex-1">
                     <p className="text-sm font-medium">{recipe.name}</p>
                     <p className="text-xs text-[var(--cream-dim)]">
                       {recipe.ingredientIds
@@ -98,20 +101,24 @@ export default function PublicMenuPage() {
                       <p className="mt-1 text-sm font-medium">${recipe.sellPrice.toFixed(2)}</p>
                     )}
                   </div>
-                  {photo && (
-                    <img
-                      src={photo}
-                      alt={recipe.name}
-                      className="mb-3 h-72 w-full rounded-lg object-cover"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleOrder(recipe.id)}
-                    className="w-full rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
-                  >
-                    {orderedId === recipe.id ? "Ordered ✓" : "Order Cocktail"}
-                  </button>
+                  {/* Photo (fixed 4:3) on the right, with the order button
+                      directly beneath it. */}
+                  <div className="w-44 flex-shrink-0">
+                    {photo && (
+                      <img
+                        src={photo}
+                        alt={recipe.name}
+                        className="mb-2 aspect-[4/3] w-full rounded-lg object-cover"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleOrder(recipe.id)}
+                      className="w-full rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+                    >
+                      {orderedId === recipe.id ? "Ordered ✓" : "Order Cocktail"}
+                    </button>
+                  </div>
                 </RevealOnScroll>
               )
             })}
