@@ -25,63 +25,65 @@ function nodeRadius(tag: string) {
   return 20 + tag.length * 3.1
 }
 
-// Nudges any pair of points closer than their combined radii apart, run for
-// a fixed number of passes — settles an initial scatter into a non-
-// overlapping layout while keeping its rough shape.
-function relax<T extends { x: number; y: number; r: number }>(points: T[], passes: number) {
+interface Point {
+  x: number
+  y: number
+  r: number
+}
+
+// Nudges any pair of movable points closer than their combined radii apart,
+// and separately pushes movable points away from fixed obstacles (which
+// don't move themselves) — run for a fixed number of passes so everything
+// settles into a non-overlapping arrangement.
+function relax<T extends Point>(movable: T[], fixed: Point[], passes: number) {
   for (let pass = 0; pass < passes; pass++) {
-    for (let a = 0; a < points.length; a++) {
-      for (let b = a + 1; b < points.length; b++) {
-        const dx = points[b].x - points[a].x
-        const dy = points[b].y - points[a].y
+    for (const m of movable) {
+      for (const f of fixed) {
+        const dx = m.x - f.x
+        const dy = m.y - f.y
         const dist = Math.hypot(dx, dy) || 0.01
-        const minDist = points[a].r + points[b].r + MIN_GAP
+        const minDist = m.r + f.r + MIN_GAP
+        if (dist < minDist) {
+          const push = minDist - dist
+          m.x += (dx / dist) * push
+          m.y += (dy / dist) * push
+        }
+      }
+    }
+    for (let a = 0; a < movable.length; a++) {
+      for (let b = a + 1; b < movable.length; b++) {
+        const dx = movable[b].x - movable[a].x
+        const dy = movable[b].y - movable[a].y
+        const dist = Math.hypot(dx, dy) || 0.01
+        const minDist = movable[a].r + movable[b].r + MIN_GAP
         if (dist < minDist) {
           const push = (minDist - dist) / 2
           const ux = dx / dist
           const uy = dy / dist
-          points[a].x -= ux * push
-          points[a].y -= uy * push
-          points[b].x += ux * push
-          points[b].y += uy * push
+          movable[a].x -= ux * push
+          movable[a].y -= uy * push
+          movable[b].x += ux * push
+          movable[b].y += uy * push
         }
       }
     }
   }
-  return points
+  return movable
 }
 
-// A jagged, multi-segment ribbon rather than one clean arc — each layer gets
-// its own independent wander so the 3 stacked strands don't trace the same
-// shape, while jitter tapers to zero at both ends so it still lands exactly
-// on the two nodes it connects.
-function organicPath(x1: number, y1: number, x2: number, y2: number, seed: number) {
+// One smooth, gently bowed curve — no jagged segments. "Flow" comes from the
+// animation (a traveling highlight plus breathing glow), not from the shape
+// wobbling around.
+function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
+  const mx = (x1 + x2) / 2
+  const my = (y1 + y2) / 2
   const dx = x2 - x1
   const dy = y2 - y1
   const len = Math.hypot(dx, dy) || 1
-  const nx = -dy / len
-  const ny = dx / len
-
-  const segments = 5
-  let d = `M ${x1} ${y1}`
-  let prevX = x1
-  let prevY = y1
-  for (let s = 1; s <= segments; s++) {
-    const t = s / segments
-    const baseX = x1 + dx * t
-    const baseY = y1 + dy * t
-    const taper = Math.sin(Math.PI * t)
-    const jitter = (pseudoRandom(seed, s * 13.7) - 0.5) * 46 * taper
-    const along = (pseudoRandom(seed, s * 5.3) - 0.5) * 14 * taper
-    const px = baseX + nx * jitter + (dx / len) * along
-    const py = baseY + ny * jitter + (dy / len) * along
-    const ctrlX = (prevX + px) / 2 + (pseudoRandom(seed, s * 8.1) - 0.5) * 16 * taper
-    const ctrlY = (prevY + py) / 2 + (pseudoRandom(seed, s * 3.9) - 0.5) * 16 * taper
-    d += ` Q ${ctrlX} ${ctrlY}, ${px} ${py}`
-    prevX = px
-    prevY = py
-  }
-  return d
+  const bow = (seed % 2 === 0 ? 1 : -1) * (16 + pseudoRandom(seed, 9) * 22)
+  const ctrlX = mx + (-dy / len) * bow
+  const ctrlY = my + (dx / len) * bow
+  return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`
 }
 
 const ACCENTS = ["var(--teal)", "var(--gold)", "var(--berry)"]
@@ -89,15 +91,29 @@ const ACCENTS = ["var(--teal)", "var(--gold)", "var(--berry)"]
 function AuroraLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
   return (
     <g className="aurora-group" style={{ animationDelay: `${pseudoRandom(seed, 40) * 2.5}s` }}>
-      {ACCENTS.map((color, layer) => (
-        <path
-          key={layer}
-          d={organicPath(from.x, from.y, to.x, to.y, seed + layer * 17)}
-          className={`aurora-strand aurora-strand-${layer}`}
-          stroke={color}
-          style={{ animationDelay: `${pseudoRandom(seed, 50 + layer) * 2}s` }}
-        />
-      ))}
+      {ACCENTS.map((color, layer) => {
+        const d = curveBetween(from.x, from.y, to.x, to.y, seed + layer * 17)
+        return (
+          <g key={layer}>
+            <path
+              d={d}
+              className={`aurora-strand aurora-strand-${layer}`}
+              stroke={color}
+              style={{ animationDelay: `${pseudoRandom(seed, 50 + layer) * 2}s` }}
+            />
+            {/* A small bright spark drifting along the strand — this is what
+                actually reads as "flowing" rather than a static glow. */}
+            <circle r={2.2} fill={color} className="aurora-spark">
+              <animateMotion
+                dur={`${2.6 + pseudoRandom(seed, 60 + layer) * 1.8}s`}
+                begin={`${pseudoRandom(seed, 70 + layer) * 2}s`}
+                repeatCount="indefinite"
+                path={d}
+              />
+            </circle>
+          </g>
+        )
+      })}
     </g>
   )
 }
@@ -105,8 +121,7 @@ function AuroraLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
 export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   // Resting layout: an irregular ring (randomized angle + radius per node),
   // then relaxed apart so labels never overlap no matter how the scatter
-  // landed. A faint static mesh between ring-neighbours gives the picker a
-  // constant "neural net" look even before anything's selected.
+  // landed.
   const nodes = useMemo(() => {
     const points = FLAVOR_TAGS.map((tag, i) => {
       const angle = (i / FLAVOR_TAGS.length) * Math.PI * 2 - Math.PI / 2 + (pseudoRandom(i, 0) - 0.5) * 0.55
@@ -119,17 +134,13 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         r: nodeRadius(tag),
       }
     })
-    relax(points, 60)
+    relax(points, [], 60)
     return points.map((p, i) => ({
       ...p,
-      duration: 4 + pseudoRandom(i, 1) * 3.5,
+      duration: 5 + pseudoRandom(i, 1) * 3,
       delay: pseudoRandom(i, 2) * 4,
-      dx1: (pseudoRandom(i, 3) - 0.5) * 14,
-      dy1: (pseudoRandom(i, 4) - 0.5) * 14,
-      dx2: (pseudoRandom(i, 5) - 0.5) * 16,
-      dy2: (pseudoRandom(i, 6) - 0.5) * 16,
-      dx3: (pseudoRandom(i, 7) - 0.5) * 12,
-      dy3: (pseudoRandom(i, 8) - 0.5) * 12,
+      ampX: (pseudoRandom(i, 3) - 0.5) * 10,
+      ampY: 8 + pseudoRandom(i, 4) * 6,
     }))
   }, [])
 
@@ -145,7 +156,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       x: CENTER + radius * Math.cos(n.angle),
       y: CENTER + radius * Math.sin(n.angle),
     }))
-    relax(points, 40)
+    relax(points, [], 40)
     return points
   }, [nodes, selectedTags])
 
@@ -154,29 +165,16 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
     [activeCluster],
   )
 
-  // Any still-resting node that the incoming active cluster would now
-  // overlap gets nudged straight back away from it — clears space in the
-  // middle instead of letting a word tag sit underneath the cluster.
+  // Resting nodes are relaxed against the active cluster (as fixed obstacles
+  // they get pushed away from) AND against each other (so being pushed back
+  // doesn't just pile them up on top of one another instead) — nothing ends
+  // up overlapping anything, active or resting.
   const restingPositions = useMemo(() => {
-    const result = new Map<FlavorTag, { x: number; y: number }>()
-    for (const n of nodes) {
-      if (selectedTags.includes(n.tag)) continue
-      let pushX = 0
-      let pushY = 0
-      for (const ap of activeCluster) {
-        const dx = n.x - ap.x
-        const dy = n.y - ap.y
-        const dist = Math.hypot(dx, dy) || 0.01
-        const minDist = n.r + ap.r + MIN_GAP
-        if (dist < minDist) {
-          const overlap = minDist - dist
-          pushX += (dx / dist) * overlap
-          pushY += (dy / dist) * overlap
-        }
-      }
-      result.set(n.tag, { x: n.x + pushX, y: n.y + pushY })
-    }
-    return result
+    const inactive = nodes
+      .filter((n) => !selectedTags.includes(n.tag))
+      .map((n) => ({ tag: n.tag, x: n.x, y: n.y, r: n.r }))
+    relax(inactive, activeCluster, 60)
+    return new Map(inactive.map((p) => [p.tag, { x: p.x, y: p.y }]))
   }, [nodes, activeCluster, selectedTags])
 
   const hasSelection = selectedTags.length > 0
@@ -184,28 +182,9 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   return (
     <div className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible">
       <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
-        {/* Faint always-on mesh between ring-neighbours, for that constant
-            neural-net texture. */}
-        {nodes.map((n, i) => {
-          const next = nodes[(i + 1) % nodes.length]
-          const from = activePositions.get(n.tag) ?? restingPositions.get(n.tag) ?? n
-          const to = activePositions.get(next.tag) ?? restingPositions.get(next.tag) ?? next
-          return (
-            <line
-              key={`mesh-${n.tag}`}
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
-              stroke="var(--cream-dim)"
-              strokeWidth={1}
-              opacity={0.12}
-            />
-          )
-        })}
-
         {/* Aurora synapses: each active node to the core, plus a full mesh
-            between every pair of active nodes — picks "talk" to each other. */}
+            between every pair of active nodes — picks "talk" to each other.
+            Resting nodes stay unconnected until they're picked. */}
         {hasSelection &&
           selectedTags.map((tag, i) => {
             const pos = activePositions.get(tag)
@@ -231,7 +210,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         />
       </svg>
 
-      {nodes.map(({ tag, x, y, duration, delay, dx1, dy1, dx2, dy2, dx3, dy3 }) => {
+      {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {
         const isActive = selectedTags.includes(tag)
         const pos = isActive
           ? activePositions.get(tag) ?? { x, y }
@@ -246,12 +225,8 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
                 transition: "left 0.9s cubic-bezier(0.22, 1, 0.36, 1), top 0.9s cubic-bezier(0.22, 1, 0.36, 1)",
                 animationDuration: `${duration}s`,
                 animationDelay: `${delay}s`,
-                "--dx1": `${dx1}px`,
-                "--dy1": `${dy1}px`,
-                "--dx2": `${dx2}px`,
-                "--dy2": `${dy2}px`,
-                "--dx3": `${dx3}px`,
-                "--dy3": `${dy3}px`,
+                "--ampx": `${ampX}px`,
+                "--ampy": `${ampY}px`,
               } as React.CSSProperties
             }
             className="neuron-float absolute"
