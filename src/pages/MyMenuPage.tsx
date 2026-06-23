@@ -18,17 +18,12 @@ const TABS: { value: MenuCategory; label: string }[] = [
 ]
 
 export default function MyMenuPage() {
-  const { recipes, updateRecipe, removeRecipe, ingredients, substitutions, experiments } = useData()
+  const { recipes, updateRecipe, removeRecipe, ingredients, substitutions } = useData()
   const [tab, setTab] = useState<MenuCategory>("core")
 
   const allMenuRecipes = recipes.filter((r) => r.venueId === null)
   const menuRecipes = byName(allMenuRecipes.filter((r) => (r.menuCategory ?? "core") === tab))
   const byId = new Map(ingredients.map((i) => [i.id, i]))
-  // Fallback photo lookup for recipes promoted before photos were snapshotted
-  // onto the recipe itself — match the source experiment by name.
-  const photoByName = new Map(
-    experiments.filter((e) => e.photos.length > 0).map((e) => [e.name.toLowerCase(), e.photos[0]]),
-  )
 
   return (
     <div className="relative space-y-4">
@@ -70,18 +65,10 @@ export default function MyMenuPage() {
           const sellPrice = recipe.sellPrice ?? 0
           const recipeMargin = margin(sellPrice, cost)
           const marginPct = marginPercent(sellPrice, cost)
-          const photo = recipe.photo ?? photoByName.get(recipe.name.toLowerCase())
 
           return (
             <RevealOnScroll key={recipe.id} delay={Math.min(i, 8) * 60} className="p-4">
               <div className="flex items-start justify-between gap-3">
-                {photo && (
-                  <img
-                    src={photo}
-                    alt={recipe.name}
-                    className="h-16 w-16 flex-shrink-0 rounded-md object-cover"
-                  />
-                )}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{recipe.name}</p>
                   <p className="text-xs text-[var(--cream-dim)]">

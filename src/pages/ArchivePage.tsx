@@ -236,7 +236,16 @@ export default function ArchivePage() {
           <p className="text-sm text-[var(--cream-dim)]">No experiments logged yet.</p>
         )}
         {byName(experiments)
-          .filter((exp) => (exp.name.trim()[0]?.toUpperCase() ?? "A") >= floorChar)
+          .filter((exp) => {
+            // At the leftmost position (A) show everything — the slider only
+            // ever hides, never permanently drops a drink. Names starting
+            // with a digit or symbol always show (they sort before A and
+            // shouldn't be filtered out by a letter scrub).
+            if (letterFloor === 0) return true
+            const c = exp.name.trim()[0]?.toUpperCase() ?? ""
+            if (c < "A" || c > "Z") return true
+            return c >= floorChar
+          })
           .map((exp, i) => (
             <RevealOnScroll
               key={exp.id}
