@@ -71,9 +71,16 @@ function relax<T extends Point>(movable: T[], fixed: Point[], passes: number) {
   return movable
 }
 
+// Water palette only — no rainbow accents. A deep blue body, a brighter
+// aqua mid-tone, and a near-white highlight for gloss/sparkle.
+const WATER_DEEP = "#0a3d5c"
+const WATER_BLUE = "#1f8fd6"
+const WATER_AQUA = "#6fe3ff"
+const WATER_SHINE = "#e6fbff"
+
 // A smooth cubic ribbon with two independently-randomized control points —
-// not mirrored around the midpoint like a single quadratic bow, so the curve
-// reads as an asymmetric flowing "S" rather than a clean, perfect arc.
+// not mirrored around the midpoint, so it reads as an asymmetric flowing
+// curve rather than a clean, perfect arc.
 function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
   const dx = x2 - x1
   const dy = y2 - y1
@@ -94,19 +101,60 @@ function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: numb
   return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`
 }
 
-// A liquid thread between two points: a glossy gradient-filled stream (not a
-// drawn line) with a small droplet of light sliding along it — like a thread
-// of spirit still moving between the blob and whatever it's linked to.
+// A few small droplets flung off a point along its outward normal, fading
+// and falling as they go — this is what actually sells "water being moved
+// by something," not just a glow.
+function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx: number; ny: number; seed: number; count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => {
+        const s = seed + i * 13
+        const spread = (pseudoRandom(s, 1) - 0.5) * 1.4
+        const dx = nx + spread * ny
+        const dy = ny - spread * nx
+        const len = Math.hypot(dx, dy) || 1
+        return (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r={1.1 + pseudoRandom(s, 2) * 1.1}
+            fill={pseudoRandom(s, 3) > 0.5 ? WATER_AQUA : WATER_SHINE}
+            className="water-droplet"
+            style={
+              {
+                "--dx": `${(dx / len) * (14 + pseudoRandom(s, 4) * 16)}px`,
+                "--dy": `${(dy / len) * (14 + pseudoRandom(s, 4) * 16)}px`,
+                animationDuration: `${1.6 + pseudoRandom(s, 5) * 1.4}s`,
+                animationDelay: `${pseudoRandom(s, 6) * 3}s`,
+              } as React.CSSProperties
+            }
+          />
+        )
+      })}
+    </>
+  )
+}
+
+// A liquid tendril between two points: a glossy blue/aqua gradient stream
+// with a thin white sheen down the middle and droplets springing off
+// partway along — reads as water still being pulled/held taut, not a beam.
 function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
   const d = curveBetween(from.x, from.y, to.x, to.y, seed)
   const gradId = `liquid-grad-${seed}`
+  const mx = (from.x + to.x) / 2
+  const my = (from.y + to.y) / 2
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const len = Math.hypot(dx, dy) || 1
+
   return (
     <g style={{ animationDelay: `${pseudoRandom(seed, 40) * 2.5}s` }}>
       <defs>
         <linearGradient id={gradId} x1={from.x} y1={from.y} x2={to.x} y2={to.y} gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--teal)" />
-          <stop offset="50%" stopColor="var(--gold)" />
-          <stop offset="100%" stopColor="var(--berry)" />
+          <stop offset="0%" stopColor={WATER_BLUE} />
+          <stop offset="50%" stopColor={WATER_AQUA} />
+          <stop offset="100%" stopColor={WATER_BLUE} />
         </linearGradient>
       </defs>
       <path
@@ -115,7 +163,8 @@ function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
         className="liquid-strand"
         style={{ animationDelay: `${pseudoRandom(seed, 51) * 2}s` }}
       />
-      <ellipse rx={4.5} ry={2.2} fill="var(--cream)" className="liquid-droplet">
+      <path d={d} stroke={WATER_SHINE} className="liquid-sheen" />
+      <ellipse rx={3.6} ry={1.8} fill={WATER_SHINE} className="liquid-droplet">
         <animateMotion
           dur={`${2.6 + pseudoRandom(seed, 60) * 1.8}s`}
           begin={`${pseudoRandom(seed, 70) * 2}s`}
@@ -124,6 +173,75 @@ function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { 
           rotate="auto"
         />
       </ellipse>
+      <Droplets x={mx} y={my} nx={-dy / len} ny={dx / len} seed={seed + 100} count={2} />
+    </g>
+  )
+}
+
+// A closed, irregular blob outline — N points scattered around a circle at
+// uneven radii, joined with smooth curves through their midpoints so the
+// outline has no straight edges or corners, just an organic watery shape.
+function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: number, points = 9) {
+  const pts: { x: number; y: number }[] = []
+  for (let i = 0; i < points; i++) {
+    const angle = (i / points) * Math.PI * 2
+    const wobble = 0.6 + pseudoRandom(seed, variant * 97 + i * 7) * 0.75
+    const r = baseR * wobble
+    pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) })
+  }
+  const start = { x: (pts[0].x + pts[points - 1].x) / 2, y: (pts[0].y + pts[points - 1].y) / 2 }
+  let d = `M ${start.x} ${start.y}`
+  for (let i = 0; i < points; i++) {
+    const p = pts[i]
+    const next = pts[(i + 1) % points]
+    const mid = { x: (p.x + next.x) / 2, y: (p.y + next.y) / 2 }
+    d += ` Q ${p.x} ${p.y} ${mid.x} ${mid.y}`
+  }
+  return `${d} Z`
+}
+
+// The "thinking" core — possessed water: a closed organic outline that
+// actually morphs between irregular shapes (not squashing ellipses), with a
+// brighter inner body and a glossy highlight, plus droplets springing off
+// its surface as it churns.
+function WaterBlob({ cx, cy, baseR, seed, active }: { cx: number; cy: number; baseR: number; seed: number; active: boolean }) {
+  const variants = useMemo(
+    () => [0, 1, 2, 3].map((v) => blobPath(cx, cy, baseR, seed, v)),
+    [cx, cy, baseR, seed],
+  )
+  const values = `${variants.join(";")};${variants[0]}`
+  const gradId = `water-body-${seed}`
+
+  return (
+    <g>
+      <defs>
+        <radialGradient id={gradId} cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor={WATER_SHINE} stopOpacity={0.9} />
+          <stop offset="35%" stopColor={WATER_AQUA} stopOpacity={0.85} />
+          <stop offset="100%" stopColor={WATER_DEEP} stopOpacity={0.9} />
+        </radialGradient>
+      </defs>
+      <path d={variants[0]} fill={WATER_DEEP} opacity={active ? 0.35 : 0.18} className="water-blob-glow">
+        <animate attributeName="d" values={values} dur="7s" repeatCount="indefinite" />
+      </path>
+      <path d={variants[0]} fill={`url(#${gradId})`} className="water-blob-body">
+        <animate attributeName="d" values={values} dur="5.5s" repeatCount="indefinite" />
+      </path>
+      {[0, 1, 2].map((i) => {
+        const angle = pseudoRandom(seed, i * 31) * Math.PI * 2
+        const r = baseR * (0.8 + pseudoRandom(seed, i * 41) * 0.3)
+        return (
+          <Droplets
+            key={i}
+            x={cx + r * Math.cos(angle)}
+            y={cy + r * Math.sin(angle)}
+            nx={Math.cos(angle)}
+            ny={Math.sin(angle)}
+            seed={seed + i * 23}
+            count={2}
+          />
+        )
+      })}
     </g>
   )
 }
@@ -211,15 +329,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
           }),
         )}
 
-        {/* The "thinking" core — sentient liquid: several overlapping
-            blurred blobs squashing/stretching out of sync so they read as
-            one amorphous glowing mass rather than clean circles. */}
-        <g transform={`translate(${CENTER}, ${CENTER})`} className="liquid-core">
-          <ellipse rx={hasSelection ? 30 : 16} ry={hasSelection ? 24 : 13} fill="var(--gold)" opacity={hasSelection ? 0.24 : 0.09} className="liquid-blob liquid-blob-a" />
-          <ellipse rx={hasSelection ? 22 : 12} ry={hasSelection ? 28 : 15} fill="var(--teal)" opacity={hasSelection ? 0.18 : 0.06} className="liquid-blob liquid-blob-b" />
-          <ellipse rx={hasSelection ? 26 : 14} ry={hasSelection ? 19 : 10} fill="var(--berry)" opacity={hasSelection ? 0.16 : 0.05} className="liquid-blob liquid-blob-c" />
-          <ellipse rx={hasSelection ? 14 : 7.5} ry={hasSelection ? 12 : 6.5} fill="var(--gold)" opacity={hasSelection ? 0.92 : 0.55} className="liquid-blob-core" />
-        </g>
+        <WaterBlob cx={CENTER} cy={CENTER} baseR={hasSelection ? 26 : 15} seed={7} active={hasSelection} />
       </svg>
 
       {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {

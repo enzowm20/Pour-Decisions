@@ -55,75 +55,60 @@ body {
   animation-iteration-count: infinite;
 }
 
-/* The "thinking" core: several overlapping blurred blobs, each squashing
-   and stretching on its own uneven rhythm — like sentient liquid breathing,
-   not a mechanical pulse. Collectively they read as one amorphous glowing
-   blob rather than a stack of clean circles. */
-.liquid-blob,
-.liquid-blob-core {
-  transform-box: fill-box;
-  transform-origin: center;
+/* The "thinking" core — possessed water: the outline itself morphs between
+   irregular shapes (SMIL animate on "d"), not just squashing ellipses, so it
+   reads as actual liquid being held together by will rather than glowing
+   shapes pulsing. A soft blurred glow body sits behind the glossy one. */
+.water-blob-glow {
+  filter: blur(10px);
+}
+.water-blob-body {
+  filter: blur(0.5px);
+  stroke: #bdf6ff;
+  stroke-width: 0.6;
+  stroke-opacity: 0.5;
 }
 
-@keyframes liquid-wobble-a {
-  0%, 100% { transform: scale(1, 1) translate(0, 0); }
-  30% { transform: scale(1.18, 0.84) translate(2px, -3px); }
-  55% { transform: scale(0.88, 1.2) translate(-3px, 2px); }
-  80% { transform: scale(1.1, 0.94) translate(1px, 3px); }
+/* Droplets flung off the blob/connection surface — a quick outward flick
+   with gravity-ish drop and a fade, looping with per-droplet stagger so they
+   read as continuously springing off rather than firing in sync. */
+@keyframes water-droplet-fling {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  12% { opacity: 0.95; }
+  70% { transform: translate(var(--dx), var(--dy)) scale(0.6); opacity: 0.5; }
+  100% { transform: translate(calc(var(--dx) * 1.15), calc(var(--dy) * 1.15 + 6px)) scale(0.2); opacity: 0; }
 }
-@keyframes liquid-wobble-b {
-  0%, 100% { transform: scale(1, 1) translate(0, 0); }
-  25% { transform: scale(0.85, 1.22) translate(-2px, 2px); }
-  60% { transform: scale(1.2, 0.86) translate(3px, -2px); }
-  85% { transform: scale(0.95, 1.1) translate(-1px, -3px); }
-}
-@keyframes liquid-wobble-c {
-  0%, 100% { transform: scale(1, 1) translate(0, 0); }
-  35% { transform: scale(1.12, 0.9) translate(-3px, -2px); }
-  65% { transform: scale(0.9, 1.15) translate(2px, 3px); }
-  90% { transform: scale(1.05, 0.95) translate(3px, -1px); }
-}
-.liquid-blob {
-  filter: blur(8px);
-  mix-blend-mode: screen;
-}
-.liquid-blob-a { animation: liquid-wobble-a 4.8s ease-in-out infinite; }
-.liquid-blob-b { animation: liquid-wobble-b 5.6s ease-in-out infinite; animation-delay: 0.8s; }
-.liquid-blob-c { animation: liquid-wobble-c 4.1s ease-in-out infinite; animation-delay: 1.6s; }
-
-@keyframes liquid-core-pulse {
-  0%, 100% { transform: scale(1, 1); }
-  35% { transform: scale(1.22, 0.85); }
-  65% { transform: scale(0.86, 1.18); }
-  88% { transform: scale(1.08, 0.96); }
-}
-.liquid-blob-core {
-  filter: blur(1px);
-  animation: liquid-core-pulse 2.4s ease-in-out infinite;
+.water-droplet {
+  filter: blur(0.4px);
+  animation: water-droplet-fling ease-out infinite;
 }
 
-/* Liquid connections: a glossy, gradient-filled stream rather than a drawn
-   line, with a small flowing droplet of light sliding along it — like a
-   thread of alcohol still moving between the blob and whatever it's
-   linked to. */
+/* Liquid connections: a glossy blue/aqua gradient stream with a thin white
+   sheen down the middle, rather than a drawn line or a multicolor beam. */
 .liquid-strand {
   fill: none;
   stroke-linecap: round;
-  filter: blur(2px);
+  filter: blur(1.5px);
 }
 @keyframes liquid-flow-breathe {
-  0%, 100% { opacity: 0.45; stroke-width: 4.5; }
-  40% { opacity: 0.85; stroke-width: 6.5; }
-  70% { opacity: 0.55; stroke-width: 5.5; }
+  0%, 100% { opacity: 0.55; stroke-width: 4.5; }
+  40% { opacity: 0.9; stroke-width: 6.5; }
+  70% { opacity: 0.65; stroke-width: 5.5; }
 }
 .liquid-strand {
   animation: liquid-flow-breathe 3.4s ease-in-out infinite;
 }
 
+.liquid-sheen {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
 .liquid-droplet {
-  filter: blur(1px);
+  filter: blur(0.6px);
   opacity: 0.9;
-  mix-blend-mode: screen;
 }
 
 /* "Thinking" gimmick — pulsing dot plus a sequential ellipsis. */
