@@ -71,19 +71,27 @@ function relax<T extends Point>(movable: T[], fixed: Point[], passes: number) {
   return movable
 }
 
-// One smooth, gently bowed curve — no jagged segments. "Flow" comes from the
-// animation (a traveling highlight plus breathing glow), not from the shape
-// wobbling around.
+// A smooth cubic ribbon with two independently-randomized control points —
+// not mirrored around the midpoint like a single quadratic bow, so the curve
+// reads as an asymmetric flowing "S" rather than a clean, perfect arc.
 function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: number) {
-  const mx = (x1 + x2) / 2
-  const my = (y1 + y2) / 2
   const dx = x2 - x1
   const dy = y2 - y1
   const len = Math.hypot(dx, dy) || 1
-  const bow = (seed % 2 === 0 ? 1 : -1) * (16 + pseudoRandom(seed, 9) * 22)
-  const ctrlX = mx + (-dy / len) * bow
-  const ctrlY = my + (dx / len) * bow
-  return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`
+  const nx = -dy / len
+  const ny = dx / len
+
+  const t1 = 0.22 + pseudoRandom(seed, 1) * 0.2
+  const t2 = 0.58 + pseudoRandom(seed, 2) * 0.25
+  const bow1 = (pseudoRandom(seed, 3) - 0.5) * 80
+  const bow2 = (pseudoRandom(seed, 4) - 0.5) * 80
+
+  const c1x = x1 + dx * t1 + nx * bow1
+  const c1y = y1 + dy * t1 + ny * bow1
+  const c2x = x1 + dx * t2 + nx * bow2
+  const c2y = y1 + dy * t2 + ny * bow2
+
+  return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`
 }
 
 const ACCENTS = ["var(--teal)", "var(--gold)", "var(--berry)"]
@@ -200,14 +208,32 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
           }),
         )}
 
-        <circle
-          cx={CENTER}
-          cy={CENTER}
-          r={hasSelection ? 14 : 7}
-          fill="var(--gold)"
-          opacity={hasSelection ? 0.85 : 0.35}
-          className="neuron-core"
-        />
+        {/* The "thinking" core — a layered, asymmetrically pulsing glow with
+            two counter-rotating rings, rather than a single flat dot. */}
+        <g transform={`translate(${CENTER}, ${CENTER})`} className="ai-core">
+          <circle r={hasSelection ? 32 : 17} fill="var(--gold)" opacity={hasSelection ? 0.12 : 0.05} className="ai-core-halo ai-core-halo-a" />
+          <circle r={hasSelection ? 24 : 13} fill="var(--teal)" opacity={hasSelection ? 0.14 : 0.05} className="ai-core-halo ai-core-halo-b" />
+          <circle r={hasSelection ? 17 : 9} fill="var(--berry)" opacity={hasSelection ? 0.1 : 0.04} className="ai-core-halo ai-core-halo-c" />
+          <circle
+            r={hasSelection ? 15 : 8.5}
+            fill="none"
+            stroke="var(--gold)"
+            strokeWidth={1.2}
+            strokeDasharray="3 6"
+            opacity={hasSelection ? 0.7 : 0.3}
+            className="ai-core-ring ai-core-ring-a"
+          />
+          <circle
+            r={hasSelection ? 11 : 6}
+            fill="none"
+            stroke="var(--teal)"
+            strokeWidth={1}
+            strokeDasharray="2 5"
+            opacity={hasSelection ? 0.55 : 0.22}
+            className="ai-core-ring ai-core-ring-b"
+          />
+          <circle r={hasSelection ? 6.5 : 3.5} fill="var(--gold)" opacity={hasSelection ? 0.95 : 0.5} className="ai-core-nucleus" />
+        </g>
       </svg>
 
       {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {
