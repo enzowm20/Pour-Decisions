@@ -11,6 +11,7 @@ import type { MenuCategory } from "../types"
 const TABS: { value: MenuCategory; label: string }[] = [
   { value: "core", label: "Core Menu" },
   { value: "seasonal", label: "Seasonal Specials" },
+  { value: "venue-hybrid", label: "Venue Hybrids" },
 ]
 
 // Public, view-only menu — no password, no staff nav, no cost/margin/editing.
@@ -39,6 +40,10 @@ export default function PublicMenuPage() {
     <div className="theme-gordons min-h-screen text-[var(--cream)]">
       <DrainingBackground />
       <FallingBottles bottleImg={gordonsBottle} />
+
+      <span className="pointer-events-none fixed bottom-2 left-2 z-20 text-[10px] text-[var(--cream-dim)]/70">
+        Designed by Lorenzo Montenegro
+      </span>
 
       {/* Matches the staff header's format — logo on a cream strip, just larger,
           since this is the only thing in this page's header. */}
@@ -79,7 +84,7 @@ export default function PublicMenuPage() {
               </p>
             )}
             {menuRecipes.map((recipe, i) => {
-              const photo = photoByName.get(recipe.name.toLowerCase())
+              const photo = recipe.photo ?? photoByName.get(recipe.name.toLowerCase())
               return (
                 <RevealOnScroll
                   key={recipe.id}

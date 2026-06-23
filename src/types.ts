@@ -90,7 +90,7 @@ export interface Scan {
   photos: string[]
 }
 
-export type MenuCategory = "core" | "seasonal"
+export type MenuCategory = "core" | "seasonal" | "event-special" | "venue-hybrid" | "discontinued"
 
 export interface Recipe {
   id: string
@@ -104,6 +104,10 @@ export interface Recipe {
   missingIngredientNames?: string[]
   menuCategory?: MenuCategory // only meaningful when venueId is null; defaults to "core"
   sellPrice?: number
+  // Snapshot of the cocktail's photo, copied from the source Archive
+  // experiment when promoted — kept on the recipe so the menu image survives
+  // even if the experiment is later renamed or deleted.
+  photo?: string
 }
 
 // A recipe sent over from a venue scan via "Send to Experiment Lab" — queued

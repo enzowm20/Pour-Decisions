@@ -37,7 +37,7 @@ export default function IngredientPicker({ ingredients, selectedIds, onChange }:
                   onClick={() => toggle(ing.id)}
                   className={`rounded-full border px-3 py-1 text-xs ${
                     selectedIds.includes(ing.id)
-                      ? "border-[var(--teal)] bg-[var(--teal)] text-[var(--on-teal)]"
+                      ? "tag-strobe border-[var(--teal)] bg-[var(--teal)] text-[var(--on-teal)]"
                       : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
                   }`}
                 >

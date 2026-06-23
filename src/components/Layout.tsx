@@ -146,6 +146,10 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      <span className="pointer-events-none fixed bottom-2 left-2 z-20 text-[10px] text-[var(--cream-dim)]/70">
+        Designed by Lorenzo Montenegro
+      </span>
     </div>
   )
 }

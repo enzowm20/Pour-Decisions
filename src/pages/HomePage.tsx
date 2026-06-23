@@ -64,7 +64,7 @@ export default function HomePage() {
       </RevealOnScroll>
 
       <RevealOnScroll delay={100}>
-        <h1 className="mb-2 text-lg font-medium">Match. Mix. Sip.</h1>
+        <h1 className="mb-2 text-lg font-medium">Research, Development, and Experimentation Made Easy</h1>
         <p className="mx-auto max-w-xl text-sm text-[var(--cream-dim)]">
           A bartender's working system for stock, competitor menus, new cocktail ideas, and the
           archive of everything you've actually tried — staff only below.

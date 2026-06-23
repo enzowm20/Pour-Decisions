@@ -205,7 +205,7 @@ export default function StockPage() {
                 onClick={() => toggleIngredientStyle(ing.id, ingStyles, style)}
                 className={`rounded-full border px-3 py-1 text-xs ${
                   ingStyles.includes(style)
-                    ? "border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                    ? "tag-strobe border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                     : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
                 }`}
               >
@@ -269,7 +269,7 @@ export default function StockPage() {
               onClick={() => toggleTag(tag)}
               className={`rounded-full border px-3 py-1 text-xs ${
                 tags.includes(tag)
-                  ? "border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
+                  ? "tag-strobe border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
                   : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
               }`}
             >
@@ -287,7 +287,7 @@ export default function StockPage() {
               onClick={() => toggleStyle(style)}
               className={`rounded-full border px-3 py-1 text-xs ${
                 styles.includes(style)
-                  ? "border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                  ? "tag-strobe border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                   : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
               }`}
             >

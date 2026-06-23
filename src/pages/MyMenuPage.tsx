@@ -12,15 +12,27 @@ import type { MenuCategory } from "../types"
 const TABS: { value: MenuCategory; label: string }[] = [
   { value: "core", label: "Core Menu" },
   { value: "seasonal", label: "Seasonal Specials" },
+  { value: "event-special", label: "Event Specials" },
+  { value: "venue-hybrid", label: "Venue Hybrids" },
+  { value: "discontinued", label: "Discontinued" },
 ]
 
+// Where a recipe moves to from its "Move to..." control: cycles through the
+// real menu sections (skips discontinued, which has its own control).
+const MOVE_TARGETS: MenuCategory[] = ["core", "seasonal", "event-special", "venue-hybrid"]
+
 export default function MyMenuPage() {
-  const { recipes, updateRecipe, removeRecipe, ingredients, substitutions } = useData()
+  const { recipes, updateRecipe, removeRecipe, ingredients, substitutions, experiments } = useData()
   const [tab, setTab] = useState<MenuCategory>("core")
 
   const allMenuRecipes = recipes.filter((r) => r.venueId === null)
   const menuRecipes = byName(allMenuRecipes.filter((r) => (r.menuCategory ?? "core") === tab))
   const byId = new Map(ingredients.map((i) => [i.id, i]))
+  // Fallback photo lookup for recipes promoted before photos were snapshotted
+  // onto the recipe itself — match the source experiment by name.
+  const photoByName = new Map(
+    experiments.filter((e) => e.photos.length > 0).map((e) => [e.name.toLowerCase(), e.photos[0]]),
+  )
 
   return (
     <div className="relative space-y-4">
@@ -33,7 +45,7 @@ export default function MyMenuPage() {
         </p>
       </RevealOnScroll>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
             key={t.value}
@@ -53,7 +65,7 @@ export default function MyMenuPage() {
       <div className="divide-y divide-[var(--cream-dim)]/15 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)]">
         {menuRecipes.length === 0 && (
           <p className="p-4 text-sm text-[var(--cream-dim)]">
-            Nothing in {tab === "core" ? "your core menu" : "seasonal specials"} yet.
+            Nothing in {TABS.find((t) => t.value === tab)?.label.toLowerCase()} yet.
           </p>
         )}
         {menuRecipes.map((recipe, i) => {
@@ -62,12 +74,21 @@ export default function MyMenuPage() {
           const sellPrice = recipe.sellPrice ?? 0
           const recipeMargin = margin(sellPrice, cost)
           const marginPct = marginPercent(sellPrice, cost)
-          const otherCategory: MenuCategory = tab === "core" ? "seasonal" : "core"
+          const photo = recipe.photo ?? photoByName.get(recipe.name.toLowerCase())
+          const moveTo = MOVE_TARGETS[(MOVE_TARGETS.indexOf(tab) + 1) % MOVE_TARGETS.length]
+          const moveToLabel = TABS.find((t) => t.value === moveTo)?.label ?? moveTo
 
           return (
             <RevealOnScroll key={recipe.id} delay={Math.min(i, 8) * 60} className="p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                {photo && (
+                  <img
+                    src={photo}
+                    alt={recipe.name}
+                    className="h-16 w-16 flex-shrink-0 rounded-md object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{recipe.name}</p>
                   <p className="text-xs text-[var(--cream-dim)]">
                     {recipe.ingredientIds
@@ -80,11 +101,28 @@ export default function MyMenuPage() {
                   <StatusBadge status={result.status} />
                   <button
                     type="button"
-                    onClick={() => updateRecipe(recipe.id, { menuCategory: otherCategory })}
+                    onClick={() => updateRecipe(recipe.id, { menuCategory: moveTo })}
                     className="text-xs text-[var(--teal)] hover:underline"
                   >
-                    Move to {otherCategory === "core" ? "core" : "seasonal"}
+                    Move to {moveToLabel}
                   </button>
+                  {tab !== "discontinued" ? (
+                    <button
+                      type="button"
+                      onClick={() => updateRecipe(recipe.id, { menuCategory: "discontinued" })}
+                      className="text-xs text-[var(--cream-dim)] hover:text-[var(--cream)]"
+                    >
+                      Discontinue
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => updateRecipe(recipe.id, { menuCategory: "core" })}
+                      className="text-xs text-[var(--teal)] hover:underline"
+                    >
+                      Restore
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => removeRecipe(recipe.id)}

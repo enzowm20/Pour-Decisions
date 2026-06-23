@@ -34,6 +34,13 @@ export default function ArchivePage() {
   const [notes, setNotes] = useState("")
   const [photos, setPhotos] = useState<string[]>([])
 
+  // Alphabetical "scrub" slider: 0 = A (show everything), 25 = Z. As you
+  // slide right, every drink whose name starts before the current letter
+  // drops away, leaving only that letter onward.
+  const [letterFloor, setLetterFloor] = useState(0)
+  const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  const floorChar = ALPHABET[letterFloor]
+
   function toggleTag(tag: FlavorTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
   }
@@ -72,7 +79,13 @@ export default function ArchivePage() {
   function promote(experimentId: string) {
     const exp = experiments.find((e) => e.id === experimentId)
     if (!exp) return
-    addRecipe({ name: exp.name, venueId: null, scanId: null, ingredientIds: exp.ingredientIds })
+    addRecipe({
+      name: exp.name,
+      venueId: null,
+      scanId: null,
+      ingredientIds: exp.ingredientIds,
+      photo: exp.photos[0],
+    })
     updateExperiment(experimentId, { promotedToMenu: true })
   }
 
@@ -123,7 +136,7 @@ export default function ArchivePage() {
                 onClick={() => toggleTag(tag)}
                 className={`rounded-full border px-3 py-1 text-xs ${
                   tags.includes(tag)
-                    ? "border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                    ? "tag-strobe border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                     : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
                 }`}
               >
@@ -202,11 +215,28 @@ export default function ArchivePage() {
       </form>
       </RevealOnScroll>
 
+      {experiments.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="w-6 text-center text-base font-medium text-[var(--gold)]">{floorChar}</span>
+          <input
+            type="range"
+            min={0}
+            max={25}
+            value={letterFloor}
+            onChange={(e) => setLetterFloor(Number(e.target.value))}
+            className="h-1.5 flex-1 cursor-pointer accent-[var(--gold)]"
+            aria-label="Filter drinks from this letter onward"
+          />
+          <span className="text-xs text-[var(--cream-dim)]">showing {floorChar}–Z</span>
+        </div>
+      )}
+
       <div className="space-y-3">
         {experiments.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">No experiments logged yet.</p>
         )}
         {byName(experiments)
+          .filter((exp) => (exp.name.trim()[0]?.toUpperCase() ?? "A") >= floorChar)
           .map((exp, i) => (
             <RevealOnScroll
               key={exp.id}
