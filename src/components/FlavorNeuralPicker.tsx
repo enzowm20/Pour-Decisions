@@ -103,14 +103,14 @@ function smoothClosedPath(points: { x: number; y: number }[]) {
 const BLOB_POINTS = 9
 function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: number) {
   const driftAngle = pseudoRandom(seed, variant * 61) * Math.PI * 2
-  const driftMag = baseR * 0.2 * pseudoRandom(seed, variant * 71)
+  const driftMag = baseR * 0.28 * pseudoRandom(seed, variant * 71)
   const ccx = cx + Math.cos(driftAngle) * driftMag
   const ccy = cy + Math.sin(driftAngle) * driftMag
 
   const pts = []
   for (let i = 0; i < BLOB_POINTS; i++) {
     const angle = (i / BLOB_POINTS) * Math.PI * 2
-    const wobble = 0.5 + pseudoRandom(seed, variant * 97 + i * 7) * 0.9
+    const wobble = 0.38 + pseudoRandom(seed, variant * 97 + i * 7) * 1.3
     const r = baseR * wobble
     pts.push({ x: ccx + r * Math.cos(angle), y: ccy + r * Math.sin(angle) })
   }
@@ -304,7 +304,7 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
 
   // The blob swells a little more with every tag pressed, capped so it never
   // crowds out the picker.
-  const blobRadius = Math.min(15 + selectedTags.length * 3.4, 34)
+  const blobRadius = Math.min(26 + selectedTags.length * 3.4, 46)
 
   // The central blob is a fixed obstacle for every other layout pass below —
   // this is what stops resting AND active tags from ever overlapping it.
