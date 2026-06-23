@@ -55,21 +55,6 @@ body {
   animation-iteration-count: infinite;
 }
 
-/* Picked tags swirl in a small loop instead of just bobbing — reads as the
-   label drifting around inside the liquid it's now sitting in. */
-@keyframes tag-swirl {
-  0% { transform: translate(-50%, -50%) translate(0, 0); }
-  25% { transform: translate(-50%, -50%) translate(var(--ampx), calc(var(--ampy) * -1)); }
-  50% { transform: translate(-50%, -50%) translate(calc(var(--ampx) * -1), 0); }
-  75% { transform: translate(-50%, -50%) translate(0, var(--ampy)); }
-  100% { transform: translate(-50%, -50%) translate(0, 0); }
-}
-.tag-swirl {
-  animation-name: tag-swirl;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-
 /* The "thinking" core — possessed water: the outline itself morphs between
    irregular shapes (SMIL animate on "d"), not just squashing ellipses, so it
    reads as actual liquid being held together by will rather than glowing

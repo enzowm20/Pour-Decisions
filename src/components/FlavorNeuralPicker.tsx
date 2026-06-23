@@ -293,6 +293,13 @@ function WaterBlobShape({
   )
 }
 
+interface TagSim {
+  x: number
+  y: number
+  angle: number
+  settled: boolean
+}
+
 export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   // Resting layout: an irregular ring (randomized angle + radius per node),
   // then relaxed apart so labels never overlap no matter how the scatter
@@ -324,62 +331,69 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   // The blob swells a little more with every tag pressed, capped so it never
   // crowds out the picker.
   const blobRadius = Math.min(26 + selectedTags.length * 3.4, 46)
+  // How far out the whirlpool sits — comfortably inside the blob's own
+  // radius, so swirling tags never read as floating past its edge.
+  const whirlRadius = blobRadius * 0.42
 
-  // The central blob is a fixed obstacle for every other layout pass below —
-  // this is what stops resting AND active tags from ever overlapping it.
+  // The central blob is a fixed obstacle for the resting layout below —
+  // this is what stops idle tags from ever drifting on top of it. Picked
+  // tags are no longer laid out by this relax pass at all (see the gravity
+  // simulation further down) — they leave it the moment they're picked.
   const blobObstacle: Point = { x: CENTER, y: CENTER, r: blobRadius + 12 }
 
-  // Active layout: the same nodes pulled in toward the core along their own
-  // angle, relaxed against the blob itself plus each other so a cluster of
-  // picks doesn't pile on top of itself OR sit on top of the growing blob.
-  const activeCluster = useMemo(() => {
-    const active = nodes.filter((n) => selectedTags.includes(n.tag))
-    const radius = 55 + active.length * 9
-    const points = active.map((n) => ({
-      tag: n.tag,
-      r: n.r,
-      x: CENTER + radius * Math.cos(n.angle),
-      y: CENTER + radius * Math.sin(n.angle),
-    }))
-    relax(points, [blobObstacle], 40)
-    return points
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, selectedTags, blobRadius])
-
-  const activePositions = useMemo(
-    () => new Map(activeCluster.map((p) => [p.tag, { x: p.x, y: p.y }])),
-    [activeCluster],
-  )
-
-  // Resting nodes are relaxed against the blob AND the active cluster (as
-  // fixed obstacles they get pushed away from) AND against each other (so
-  // being pushed back doesn't just pile them up on top of one another
-  // instead) — nothing ends up overlapping anything, blob, active, or
-  // resting.
   const restingPositions = useMemo(() => {
     const inactive = nodes
       .filter((n) => !selectedTags.includes(n.tag))
       .map((n) => ({ tag: n.tag, x: n.x, y: n.y, r: n.r }))
-    relax(inactive, [blobObstacle, ...activeCluster], 60)
+    relax(inactive, [blobObstacle], 60)
     return new Map(inactive.map((p) => [p.tag, { x: p.x, y: p.y }]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, activeCluster, selectedTags, blobRadius])
+  }, [nodes, selectedTags, blobRadius])
+
+  // Live refs for values the animation loop below needs but shouldn't
+  // re-subscribe to (the loop itself only ever runs once) — updated by
+  // plain assignment every render, always current by the next frame.
+  const selectedTagsRef = useRef(selectedTags)
+  selectedTagsRef.current = selectedTags
+  const whirlRadiusRef = useRef(whirlRadius)
+  whirlRadiusRef.current = whirlRadius
+
+  const tagSimRef = useRef<Map<FlavorTag, TagSim>>(new Map())
+
+  // Whenever a tag is freshly picked, start its simulation from wherever it
+  // was just resting — gravity takes it from there. Whenever one is
+  // unpicked, drop it from the sim; the render below falls back to the
+  // ordinary resting layout (with its normal CSS transition) for it.
+  useEffect(() => {
+    const sim = tagSimRef.current
+    for (const tag of selectedTags) {
+      if (sim.has(tag)) continue
+      const start = nodes.find((n) => n.tag === tag)
+      sim.set(tag, { x: start?.x ?? CENTER, y: start?.y ?? CENTER, angle: 0, settled: false })
+    }
+    for (const tag of Array.from(sim.keys())) {
+      if (!selectedTags.includes(tag)) sim.delete(tag)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTags])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const cursorRef = useRef<{ x: number; y: number } | null>(null)
   const [orbit, setOrbit] = useState({ x: CENTER, y: CENTER, t: 0 })
 
-  // The orbit anchor eases toward the cursor (read from a ref, not state, so
-  // mouse-move events don't themselves trigger renders) — and eases back to
-  // the blob's own center once the cursor leaves, which is what makes the
-  // droplets read as originating from the blob rather than just trailing
-  // the pointer everywhere it goes.
+  // One shared animation loop: the orbit-droplet anchor eases toward the
+  // cursor (or back to the blob's center), AND every picked tag gets pulled
+  // in by the blob's "gravity" until it's close enough to peel off into a
+  // clockwise orbit of its own — a whirlpool. Driven by refs + a single
+  // re-render-triggering state update so positions read as continuous
+  // motion rather than a CSS transition chasing a constantly moving target.
   useEffect(() => {
     let raf = 0
     let last = performance.now()
     const tick = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05)
       last = now
+
       setOrbit((prev) => {
         const target = cursorRef.current ?? { x: CENTER, y: CENTER }
         const ease = 1 - Math.pow(0.0008, dt)
@@ -389,6 +403,34 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
           t: prev.t + dt,
         }
       })
+
+      const whirlR = whirlRadiusRef.current
+      for (const tag of selectedTagsRef.current) {
+        const sim = tagSimRef.current.get(tag)
+        if (!sim) continue
+        const dx = CENTER - sim.x
+        const dy = CENTER - sim.y
+        const dist = Math.hypot(dx, dy)
+        if (!sim.settled && dist <= whirlR * 1.15) sim.settled = true
+
+        if (!sim.settled) {
+          // Gravity: ease steadily in toward the core.
+          const pull = 1 - Math.pow(0.01, dt)
+          sim.x += dx * pull
+          sim.y += dy * pull
+        } else {
+          // Whirlpool: orbit clockwise (angle increasing is clockwise in
+          // screen space, where y points down) at a fixed radius, easing
+          // toward that rotating point rather than snapping to it.
+          sim.angle += dt * 1.7
+          const tx = CENTER + whirlR * Math.cos(sim.angle)
+          const ty = CENTER + whirlR * Math.sin(sim.angle)
+          const ease = 1 - Math.pow(0.0004, dt)
+          sim.x += (tx - sim.x) * ease
+          sim.y += (ty - sim.y) * ease
+        }
+      }
+
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -404,6 +446,16 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       y: ((e.clientY - rect.top) / rect.height) * VIEW,
     }
   }
+
+  // Skip the position CSS-transition on the very first paint — without
+  // this, every node's left/top appears to animate in from the default
+  // (top-left) corner the instant the page mounts, which is the "jitters to
+  // the left" jolt.
+  const [settledIn, setSettledIn] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setSettledIn(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
   return (
     <div
@@ -443,29 +495,18 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         <g filter={`url(#${GOO_FILTER_ID})`}>
           <WaterBlobShape cx={CENTER} cy={CENTER} radius={blobRadius} seed={7} active={hasSelection} />
           {selectedTags.map((tag, i) => {
-            const pos = activePositions.get(tag)
-            if (!pos) return null
+            const sim = tagSimRef.current.get(tag)
+            if (!sim) return null
             const tagSeed = tag.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + i * 17
             // Sized and stretched to actually engulf the label (longer words
-            // need a wider, not just bigger, blob), then bridged toward the
-            // core with a couple of smaller in-between blobs along the same
-            // line — all sharing the goo filter, so the whole chain reads as
-            // one body reaching out and pooling back into the center rather
-            // than a separate satellite sitting next to it.
-            const textRadius = 13
+            // need a wider, not just bigger, blob). It travels with the
+            // gravity/whirlpool simulation below, so as it nears the core
+            // and starts orbiting, the goo filter naturally fuses it into
+            // the central body — no separate connector shape needed.
             const stretchX = Math.min(1.5 + tag.length * 0.22, 4.2)
-            const bridges = [0.34, 0.68].map((t, k) => ({
-              x: pos.x + (CENTER - pos.x) * t,
-              y: pos.y + (CENTER - pos.y) * t,
-              r: textRadius * (1 - t) + blobRadius * 0.55 * t,
-              seed: tagSeed + k * 31 + 5,
-            }))
             return (
               <g key={`node-blob-${tag}`} className="blob-pop-in">
-                <WaterBlobShape cx={pos.x} cy={pos.y} radius={textRadius} seed={tagSeed} active sweep stretchX={stretchX} />
-                {bridges.map((b) => (
-                  <WaterBlobShape key={b.seed} cx={b.x} cy={b.y} radius={b.r} seed={b.seed} active />
-                ))}
+                <WaterBlobShape cx={sim.x} cy={sim.y} radius={13} seed={tagSeed} active sweep stretchX={stretchX} />
               </g>
             )
           })}
@@ -492,9 +533,18 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
 
       {nodes.map(({ tag, x, y, duration, delay, ampX, ampY }) => {
         const isActive = selectedTags.includes(tag)
-        const pos = isActive
-          ? activePositions.get(tag) ?? { x, y }
-          : restingPositions.get(tag) ?? { x, y }
+        const sim = isActive ? tagSimRef.current.get(tag) : undefined
+        const pos = sim ?? restingPositions.get(tag) ?? { x, y }
+        // Active tags are positioned every frame by the gravity/whirlpool
+        // simulation — a CSS transition fighting a target that moves 60
+        // times a second is exactly what produces laggy, jittery motion, so
+        // it's switched off for those. Resting tags keep the smooth
+        // transition, except on the very first paint (see settledIn).
+        const transition = isActive
+          ? "none"
+          : settledIn
+            ? "left 0.9s cubic-bezier(0.22, 1, 0.36, 1), top 0.9s cubic-bezier(0.22, 1, 0.36, 1)"
+            : "none"
         return (
           <div
             key={tag}
@@ -502,14 +552,14 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
               {
                 left: `${(pos.x / VIEW) * 100}%`,
                 top: `${(pos.y / VIEW) * 100}%`,
-                transition: "left 0.9s cubic-bezier(0.22, 1, 0.36, 1), top 0.9s cubic-bezier(0.22, 1, 0.36, 1)",
+                transition,
                 animationDuration: `${duration}s`,
                 animationDelay: `${delay}s`,
                 "--ampx": `${ampX}px`,
                 "--ampy": `${ampY}px`,
               } as React.CSSProperties
             }
-            className={`absolute ${isActive ? "tag-swirl" : "neuron-float"}`}
+            className={`absolute ${isActive ? "" : "neuron-float"}`}
           >
             <button
               type="button"
