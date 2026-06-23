@@ -1,14 +1,16 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { getFlaggedMissingIngredients } from "../lib/flaggedIngredients"
 import { byName } from "../lib/sort"
 
 export default function FlaggedIngredients() {
   const { recipes, substitutions, addSubstitution, ingredients, deleteFlaggedIngredientName } = useData()
+  const navigate = useNavigate()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [expanded, setExpanded] = useState(false)
 
-  const flagged = getFlaggedMissingIngredients(recipes, substitutions)
+  const flagged = getFlaggedMissingIngredients(recipes, substitutions, ingredients)
   const stockOptions = byName(ingredients)
 
   function handleSave(missingName: string) {
@@ -71,6 +73,14 @@ export default function FlaggedIngredients() {
                     className="h-8 rounded-md bg-[var(--primary)] px-2.5 text-xs font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
                   >
                     Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/stock?add=${encodeURIComponent(name)}`)}
+                    className="h-8 rounded-md border border-[var(--teal)]/40 px-2.5 text-xs font-medium text-[var(--teal)] hover:bg-[var(--teal)]/10"
+                    title="Decide to stock this — opens the stock page to fill in its details"
+                  >
+                    Purchase
                   </button>
                   <button
                     type="button"

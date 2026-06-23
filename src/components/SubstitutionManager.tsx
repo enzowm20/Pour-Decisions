@@ -8,6 +8,7 @@ export default function SubstitutionManager() {
   const [subIngredientName, setSubIngredientName] = useState("")
   const [subSubstituteName, setSubSubstituteName] = useState("")
   const [subError, setSubError] = useState("")
+  const [showAll, setShowAll] = useState(false)
 
   function handleAddSubstitution(e: React.FormEvent) {
     e.preventDefault()
@@ -78,6 +79,7 @@ export default function SubstitutionManager() {
         )}
         {[...substitutions]
           .sort((a, b) => a.ingredientName.localeCompare(b.ingredientName))
+          .slice(0, showAll ? undefined : 10)
           .map((sub) => (
             <div key={sub.id} className="flex items-center justify-between p-3 text-sm">
               <span>
@@ -94,6 +96,15 @@ export default function SubstitutionManager() {
             </div>
           ))}
       </div>
+      {substitutions.length > 10 && (
+        <button
+          type="button"
+          onClick={() => setShowAll((prev) => !prev)}
+          className="mt-2 text-xs text-[var(--teal)] hover:underline"
+        >
+          {showAll ? "Show fewer" : `View more (${substitutions.length - 10})`}
+        </button>
+      )}
     </div>
   )
 }

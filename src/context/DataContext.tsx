@@ -15,6 +15,7 @@ interface DataContextValue {
 
   venues: Venue[]
   addVenue: (data: Omit<Venue, "id">) => Venue
+  updateVenue: (id: string, data: Partial<Venue>) => void
   removeVenue: (id: string) => void
 
   scans: Scan[]
@@ -82,6 +83,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setVenues((prev) => [...prev, venue])
       return venue
     },
+    updateVenue: (id, data) =>
+      setVenues((prev) => prev.map((v) => (v.id === id ? { ...v, ...data } : v))),
     removeVenue: (id) => {
       setVenues((prev) => prev.filter((v) => v.id !== id))
       setScans((prev) => prev.filter((s) => s.venueId !== id))

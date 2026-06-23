@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
-import SubstitutionManager from "../components/SubstitutionManager"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
 import aperolBottle from "../assets/aperol-bottle.webp"
@@ -76,7 +76,10 @@ function groupSpirits(spirits: Ingredient[]): { label: string; items: Ingredient
 export default function StockPage() {
   const { ingredients, addIngredient, updateIngredient, removeIngredient } = useData()
 
-  const [name, setName] = useState("")
+  // Arriving from a flagged venue-scan ingredient's "Purchase" button —
+  // prefill the add form with that name so the user just fills in the rest.
+  const [searchParams] = useSearchParams()
+  const [name, setName] = useState(searchParams.get("add") ?? "")
   const [category, setCategory] = useState<IngredientCategory>("spirit")
   const [tags, setTags] = useState<FlavorTag[]>([])
   const [styles, setStyles] = useState<StyleTag[]>([])
@@ -337,10 +340,6 @@ export default function StockPage() {
             {visibleIngredients.map(renderIngredientRow)}
           </div>
         )}
-      </RevealOnScroll>
-
-      <RevealOnScroll delay={100}>
-        <SubstitutionManager />
       </RevealOnScroll>
     </div>
   )

@@ -4,17 +4,31 @@ import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
+import SubstitutionManager from "../components/SubstitutionManager"
+import FlaggedIngredients from "../components/FlaggedIngredients"
 import chambordBottle from "../assets/chambord-bottle.webp"
 
 export default function VenuesPage() {
-  const { venues, addVenue, scans, removeVenue } = useData()
+  const { venues, addVenue, updateVenue, scans, recipes, removeVenue } = useData()
   const [name, setName] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
     addVenue({ name: name.trim() })
     setName("")
+  }
+
+  function startEdit(id: string, current: string) {
+    setEditingId(id)
+    setEditName(current)
+  }
+
+  function saveEdit() {
+    if (editingId && editName.trim()) updateVenue(editingId, { name: editName.trim() })
+    setEditingId(null)
   }
 
   return (
@@ -48,14 +62,38 @@ export default function VenuesPage() {
         )}
         {byName(venues).map((venue, i) => {
           const venueScans = scans.filter((s) => s.venueId === venue.id)
+          const cocktailCount = recipes.filter((r) => r.venueId === venue.id).length
           return (
             <RevealOnScroll key={venue.id} delay={Math.min(i, 8) * 60} className="flex items-center justify-between p-3">
-              <Link to={`/venues/${venue.id}`} className="min-w-0">
-                <p className="text-sm font-medium">{venue.name}</p>
-                <p className="text-xs text-[var(--cream-dim)]">
-                  {venueScans.length} scan{venueScans.length === 1 ? "" : "s"}
-                </p>
-              </Link>
+              {editingId === venue.id ? (
+                <input
+                  autoFocus
+                  className="h-8 min-w-0 flex-1 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-sm text-[var(--cream)]"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={saveEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEdit()
+                    if (e.key === "Escape") setEditingId(null)
+                  }}
+                />
+              ) : (
+                <Link
+                  to={`/venues/${venue.id}`}
+                  onDoubleClick={(e) => {
+                    e.preventDefault()
+                    startEdit(venue.id, venue.name)
+                  }}
+                  className="min-w-0"
+                  title="Double-click the name to rename"
+                >
+                  <p className="text-sm font-medium">{venue.name}</p>
+                  <p className="text-xs text-[var(--cream-dim)]">
+                    {venueScans.length} scan{venueScans.length === 1 ? "" : "s"} ·{" "}
+                    {cocktailCount} cocktail{cocktailCount === 1 ? "" : "s"} logged
+                  </p>
+                </Link>
+              )}
               <div className="flex items-center gap-3">
                 <Link to={`/venues/${venue.id}`} className="text-xs text-[var(--teal)] hover:underline">
                   Open
@@ -72,6 +110,11 @@ export default function VenuesPage() {
           )
         })}
       </div>
+
+      <RevealOnScroll className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+        <SubstitutionManager />
+        <FlaggedIngredients />
+      </RevealOnScroll>
     </div>
   )
 }
