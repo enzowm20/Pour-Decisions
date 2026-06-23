@@ -94,34 +94,36 @@ function curveBetween(x1: number, y1: number, x2: number, y2: number, seed: numb
   return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`
 }
 
-const ACCENTS = ["var(--teal)", "var(--gold)", "var(--berry)"]
-
-function AuroraLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
+// A liquid thread between two points: a glossy gradient-filled stream (not a
+// drawn line) with a small droplet of light sliding along it — like a thread
+// of spirit still moving between the blob and whatever it's linked to.
+function LiquidLink({ from, to, seed }: { from: { x: number; y: number }; to: { x: number; y: number }; seed: number }) {
+  const d = curveBetween(from.x, from.y, to.x, to.y, seed)
+  const gradId = `liquid-grad-${seed}`
   return (
-    <g className="aurora-group" style={{ animationDelay: `${pseudoRandom(seed, 40) * 2.5}s` }}>
-      {ACCENTS.map((color, layer) => {
-        const d = curveBetween(from.x, from.y, to.x, to.y, seed + layer * 17)
-        return (
-          <g key={layer}>
-            <path
-              d={d}
-              className={`aurora-strand aurora-strand-${layer}`}
-              stroke={color}
-              style={{ animationDelay: `${pseudoRandom(seed, 50 + layer) * 2}s` }}
-            />
-            {/* A small bright spark drifting along the strand — this is what
-                actually reads as "flowing" rather than a static glow. */}
-            <circle r={2.2} fill={color} className="aurora-spark">
-              <animateMotion
-                dur={`${2.6 + pseudoRandom(seed, 60 + layer) * 1.8}s`}
-                begin={`${pseudoRandom(seed, 70 + layer) * 2}s`}
-                repeatCount="indefinite"
-                path={d}
-              />
-            </circle>
-          </g>
-        )
-      })}
+    <g style={{ animationDelay: `${pseudoRandom(seed, 40) * 2.5}s` }}>
+      <defs>
+        <linearGradient id={gradId} x1={from.x} y1={from.y} x2={to.x} y2={to.y} gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="var(--teal)" />
+          <stop offset="50%" stopColor="var(--gold)" />
+          <stop offset="100%" stopColor="var(--berry)" />
+        </linearGradient>
+      </defs>
+      <path
+        d={d}
+        stroke={`url(#${gradId})`}
+        className="liquid-strand"
+        style={{ animationDelay: `${pseudoRandom(seed, 51) * 2}s` }}
+      />
+      <ellipse rx={4.5} ry={2.2} fill="var(--cream)" className="liquid-droplet">
+        <animateMotion
+          dur={`${2.6 + pseudoRandom(seed, 60) * 1.8}s`}
+          begin={`${pseudoRandom(seed, 70) * 2}s`}
+          repeatCount="indefinite"
+          path={d}
+          rotate="auto"
+        />
+      </ellipse>
     </g>
   )
 }
@@ -190,49 +192,33 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   return (
     <div className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible">
       <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
-        {/* Aurora synapses: each active node to the core, plus a full mesh
-            between every pair of active nodes — picks "talk" to each other.
-            Resting nodes stay unconnected until they're picked. */}
+        {/* Liquid connections: each active node back to the blob, plus a full
+            mesh between every pair of active nodes — picks "talk" to each
+            other through threads of the same liquid. Resting nodes stay
+            unconnected until they're picked. */}
         {hasSelection &&
           selectedTags.map((tag, i) => {
             const pos = activePositions.get(tag)
             if (!pos) return null
-            return <AuroraLink key={`hub-${tag}`} from={{ x: CENTER, y: CENTER }} to={pos} seed={i * 5} />
+            return <LiquidLink key={`hub-${tag}`} from={{ x: CENTER, y: CENTER }} to={pos} seed={i * 5} />
           })}
         {selectedTags.flatMap((tagA, ai) =>
           selectedTags.slice(ai + 1).map((tagB, bi) => {
             const posA = activePositions.get(tagA)
             const posB = activePositions.get(tagB)
             if (!posA || !posB) return null
-            return <AuroraLink key={`${tagA}-${tagB}`} from={posA} to={posB} seed={ai * 11 + bi * 7 + 3} />
+            return <LiquidLink key={`${tagA}-${tagB}`} from={posA} to={posB} seed={ai * 11 + bi * 7 + 3} />
           }),
         )}
 
-        {/* The "thinking" core — a layered, asymmetrically pulsing glow with
-            two counter-rotating rings, rather than a single flat dot. */}
-        <g transform={`translate(${CENTER}, ${CENTER})`} className="ai-core">
-          <circle r={hasSelection ? 32 : 17} fill="var(--gold)" opacity={hasSelection ? 0.12 : 0.05} className="ai-core-halo ai-core-halo-a" />
-          <circle r={hasSelection ? 24 : 13} fill="var(--teal)" opacity={hasSelection ? 0.14 : 0.05} className="ai-core-halo ai-core-halo-b" />
-          <circle r={hasSelection ? 17 : 9} fill="var(--berry)" opacity={hasSelection ? 0.1 : 0.04} className="ai-core-halo ai-core-halo-c" />
-          <circle
-            r={hasSelection ? 15 : 8.5}
-            fill="none"
-            stroke="var(--gold)"
-            strokeWidth={1.2}
-            strokeDasharray="3 6"
-            opacity={hasSelection ? 0.7 : 0.3}
-            className="ai-core-ring ai-core-ring-a"
-          />
-          <circle
-            r={hasSelection ? 11 : 6}
-            fill="none"
-            stroke="var(--teal)"
-            strokeWidth={1}
-            strokeDasharray="2 5"
-            opacity={hasSelection ? 0.55 : 0.22}
-            className="ai-core-ring ai-core-ring-b"
-          />
-          <circle r={hasSelection ? 6.5 : 3.5} fill="var(--gold)" opacity={hasSelection ? 0.95 : 0.5} className="ai-core-nucleus" />
+        {/* The "thinking" core — sentient liquid: several overlapping
+            blurred blobs squashing/stretching out of sync so they read as
+            one amorphous glowing mass rather than clean circles. */}
+        <g transform={`translate(${CENTER}, ${CENTER})`} className="liquid-core">
+          <ellipse rx={hasSelection ? 30 : 16} ry={hasSelection ? 24 : 13} fill="var(--gold)" opacity={hasSelection ? 0.24 : 0.09} className="liquid-blob liquid-blob-a" />
+          <ellipse rx={hasSelection ? 22 : 12} ry={hasSelection ? 28 : 15} fill="var(--teal)" opacity={hasSelection ? 0.18 : 0.06} className="liquid-blob liquid-blob-b" />
+          <ellipse rx={hasSelection ? 26 : 14} ry={hasSelection ? 19 : 10} fill="var(--berry)" opacity={hasSelection ? 0.16 : 0.05} className="liquid-blob liquid-blob-c" />
+          <ellipse rx={hasSelection ? 14 : 7.5} ry={hasSelection ? 12 : 6.5} fill="var(--gold)" opacity={hasSelection ? 0.92 : 0.55} className="liquid-blob-core" />
         </g>
       </svg>
 
