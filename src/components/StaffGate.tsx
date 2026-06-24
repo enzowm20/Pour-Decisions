@@ -47,28 +47,26 @@ export default function StaffGate() {
     // home page itself — once the password's entered, this hands off into
     // the exact same backdrop rather than cutting from a plain login box to
     // a completely different-looking page.
-    <div className="theme-limoncello relative flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center text-[var(--cream)]">
+    <div className="theme-limoncello relative flex min-h-screen items-center justify-center px-4 text-center text-[var(--cream)]">
       <DrainingBackground />
       <FallingBottles bottleImg={limoncelloBottle} />
 
-      {/* Logo sits directly on the open background at full size, same as
-          the home page — it was previously wrapped in the same max-w-sm box
-          as the form below, which capped its width and visibly condensed
-          it. Only the form gets a backdrop, so the logo stays untouched. */}
-      <img
-        src={logoLimoncelloHero}
-        alt="Pour Decisions — match, mix, sip"
-        className="relative h-56 w-auto sm:h-80 md:h-96"
-      />
+      {/* One backdrop panel sized to fit its widest child (the logo) via
+          w-fit, rather than a fixed max-w-sm that would crop/condense it —
+          the panel's bounds always extend out to the logo's actual edges.
+          The limoncello theme's yellow liquid was making the logo hard to
+          see with no backdrop at all behind it; this puts the same opaque
+          surface behind both the logo and the form, not just the form. */}
+      <div className="relative flex w-fit max-w-full flex-col items-center gap-6 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-6">
+        <img
+          src={logoLimoncelloHero}
+          alt="Pour Decisions — match, mix, sip"
+          className="h-56 w-auto sm:h-80 md:h-96"
+        />
 
-      <div className="relative w-full max-w-sm">
-        {/* Opaque backdrop panel — sits in front of the draining liquid
-            background (which is fixed behind everything) but behind this
-            text, so the form stays easy to read against the moving liquid
-            without the logo above being boxed in by the same panel. */}
         <form
           onSubmit={hasPassword ? handleLogin : handleSetup}
-          className="w-full space-y-3 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-6 text-left"
+          className="w-full max-w-sm space-y-3 text-left"
         >
           <p className="text-base font-medium text-[var(--cream)]">
             {hasPassword ? "Staff sign-in" : "Set a staff password"}
