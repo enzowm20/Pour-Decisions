@@ -10,6 +10,7 @@ import FlavorNeuralPicker from "../components/FlavorNeuralPicker"
 import RevealOnScroll from "../components/RevealOnScroll"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
+import ConfirmButton from "../components/ConfirmButton"
 import bombayBottle from "../assets/bombay-bottle.webp"
 import { type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
 
@@ -399,13 +400,12 @@ export default function ExperimentLabPage() {
                     >
                       Try this
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => removeFromLabQueue(item.id)}
+                    <ConfirmButton
+                      onConfirm={() => removeFromLabQueue(item.id)}
+                      label="Dismiss"
                       className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                    >
-                      Dismiss
-                    </button>
+                      confirmClassName="text-xs font-medium text-[var(--berry)]"
+                    />
                   </div>
                 </RevealOnScroll>
               ))}

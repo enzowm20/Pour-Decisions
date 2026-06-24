@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
 import { getFlaggedMissingIngredients } from "../lib/flaggedIngredients"
 import { byName } from "../lib/sort"
+import ConfirmButton from "./ConfirmButton"
 
 export default function FlaggedIngredients() {
   const { recipes, substitutions, addSubstitution, ingredients, deleteFlaggedIngredientName } = useData()
@@ -82,13 +83,12 @@ export default function FlaggedIngredients() {
                   >
                     Purchase
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteFlaggedIngredientName(name)}
+                  <ConfirmButton
+                    onConfirm={() => deleteFlaggedIngredientName(name)}
+                    label="Delete"
                     className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                  >
-                    Delete
-                  </button>
+                    confirmClassName="text-xs font-medium text-[var(--berry)]"
+                  />
                 </div>
               </div>
             ))}

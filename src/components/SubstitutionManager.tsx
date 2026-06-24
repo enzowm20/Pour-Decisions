@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
+import ConfirmButton from "./ConfirmButton"
 
 export default function SubstitutionManager() {
   const { ingredients, substitutions, addSubstitution, removeSubstitution } = useData()
@@ -86,13 +87,12 @@ export default function SubstitutionManager() {
                 {sub.ingredientName} →{" "}
                 <span className="font-medium">{sub.substituteName}</span>
               </span>
-              <button
-                type="button"
-                onClick={() => removeSubstitution(sub.id)}
+              <ConfirmButton
+                onConfirm={() => removeSubstitution(sub.id)}
+                label="Remove"
                 className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-              >
-                Remove
-              </button>
+                confirmClassName="text-xs font-medium text-[var(--berry)]"
+              />
             </div>
           ))}
       </div>

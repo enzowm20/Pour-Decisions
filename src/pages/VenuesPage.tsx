@@ -6,6 +6,7 @@ import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
 import SubstitutionManager from "../components/SubstitutionManager"
 import FlaggedIngredients from "../components/FlaggedIngredients"
+import ConfirmButton from "../components/ConfirmButton"
 import chambordBottle from "../assets/chambord-bottle.webp"
 
 export default function VenuesPage() {
@@ -94,13 +95,12 @@ export default function VenuesPage() {
                 <Link to={`/venues/${venue.id}`} className="text-xs text-[var(--teal)] hover:underline">
                   Open
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => removeVenue(venue.id)}
+                <ConfirmButton
+                  onConfirm={() => removeVenue(venue.id)}
+                  label="Remove"
                   className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                >
-                  Remove
-                </button>
+                  confirmClassName="text-xs font-medium text-[var(--berry)]"
+                />
               </div>
             </RevealOnScroll>
           )

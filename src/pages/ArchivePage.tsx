@@ -6,6 +6,7 @@ import { byName } from "../lib/sort"
 import IngredientPicker from "../components/IngredientPicker"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
+import ConfirmButton from "../components/ConfirmButton"
 import jagerBottle from "../assets/jager-bottle.webp"
 import type { ExperimentOutcome, FlavorTag, GlassType } from "../types"
 import { FLAVOR_TAGS, GLASS_TYPES } from "../types"
@@ -289,13 +290,12 @@ export default function ArchivePage() {
                     {(exp.promotedToMenu || menuRecipeNames.has(exp.name)) && (
                       <span className="text-xs text-[var(--sage)]">On your menu</span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => removeExperiment(exp.id)}
+                    <ConfirmButton
+                      onConfirm={() => removeExperiment(exp.id)}
+                      label="Remove"
                       className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                    >
-                      Remove
-                    </button>
+                      confirmClassName="text-xs font-medium text-[var(--berry)]"
+                    />
                   </div>
                 </div>
               </div>

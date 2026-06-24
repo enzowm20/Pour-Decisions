@@ -11,6 +11,7 @@ import IngredientPicker from "../components/IngredientPicker"
 import StatusBadge from "../components/StatusBadge"
 import RevealOnScroll from "../components/RevealOnScroll"
 import FallingBottles from "../components/FallingBottles"
+import ConfirmButton from "../components/ConfirmButton"
 import chambordBottle from "../assets/chambord-bottle.webp"
 import type { Ingredient } from "../types"
 
@@ -65,8 +66,6 @@ export default function VenueDetailPage() {
   const [editName, setEditName] = useState("")
   const [editIngredientIds, setEditIngredientIds] = useState<string[]>([])
 
-  const [confirmRemoveScanId, setConfirmRemoveScanId] = useState<string | null>(null)
-
   const [isProcessing, setIsProcessing] = useState(false)
   const [parseError, setParseError] = useState("")
   const [rawText, setRawText] = useState<string | null>(null)
@@ -113,15 +112,6 @@ export default function VenueDetailPage() {
     )
     updateRecipe(editingRecipeId, { name: editName.trim(), ingredientIds: sorted })
     setEditingRecipeId(null)
-  }
-
-  function handleRemoveScan(scanId: string) {
-    if (confirmRemoveScanId !== scanId) {
-      setConfirmRemoveScanId(scanId)
-      return
-    }
-    removeScan(scanId)
-    setConfirmRemoveScanId(null)
   }
 
   const handleSendToLab = (recipe: { name: string; ingredientIds: string[] }) => {
@@ -554,18 +544,12 @@ export default function VenueDetailPage() {
                   >
                     {isActive ? "Done adding" : "Add cocktail"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveScan(scan.id)}
-                    onBlur={() => setConfirmRemoveScanId((prev) => (prev === scan.id ? null : prev))}
-                    className={`text-xs ${
-                      confirmRemoveScanId === scan.id
-                        ? "font-medium text-[var(--berry)]"
-                        : "text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                    }`}
-                  >
-                    {confirmRemoveScanId === scan.id ? "Click again to confirm" : "Remove scan"}
-                  </button>
+                  <ConfirmButton
+                    onConfirm={() => removeScan(scan.id)}
+                    label="Remove scan"
+                    className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                    confirmClassName="text-xs font-medium text-[var(--berry)]"
+                  />
                 </div>
               </div>
 
@@ -703,13 +687,12 @@ export default function VenueDetailPage() {
                             >
                               Send to Experiment Lab
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => removeRecipe(recipe.id)}
+                            <ConfirmButton
+                              onConfirm={() => removeRecipe(recipe.id)}
+                              label="Remove"
                               className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                            >
-                              Remove
-                            </button>
+                              confirmClassName="text-xs font-medium text-[var(--berry)]"
+                            />
                           </div>
                         </>
                       )}

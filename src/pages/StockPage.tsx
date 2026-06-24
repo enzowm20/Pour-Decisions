@@ -4,6 +4,7 @@ import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
+import ConfirmButton from "../components/ConfirmButton"
 import aperolBottle from "../assets/aperol-bottle.webp"
 import {
   CATEGORY_LABELS,
@@ -190,13 +191,12 @@ export default function StockPage() {
             >
               {ing.inStock ? "In stock" : "Out of stock"}
             </button>
-            <button
-              type="button"
-              onClick={() => removeIngredient(ing.id)}
+            <ConfirmButton
+              onConfirm={() => removeIngredient(ing.id)}
+              label="Remove"
               className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-            >
-              Remove
-            </button>
+              confirmClassName="text-xs font-medium text-[var(--berry)]"
+            />
           </div>
         </div>
         {isEditingStyles && (

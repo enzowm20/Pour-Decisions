@@ -6,6 +6,7 @@ import { margin, marginPercent, recipeCost } from "../lib/cost"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
+import ConfirmButton from "../components/ConfirmButton"
 import gordonsBottle from "../assets/gordons-bottle.webp"
 import type { MenuCategory } from "../types"
 
@@ -95,13 +96,12 @@ export default function MyMenuPage() {
                       ))}
                     </select>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => removeRecipe(recipe.id)}
+                  <ConfirmButton
+                    onConfirm={() => removeRecipe(recipe.id)}
+                    label="Remove"
                     className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                  >
-                    Remove
-                  </button>
+                    confirmClassName="text-xs font-medium text-[var(--berry)]"
+                  />
                 </div>
               </div>
 
