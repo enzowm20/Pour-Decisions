@@ -1,6 +1,10 @@
 import { useState } from "react"
 import { Outlet } from "react-router-dom"
 import { checkStaffPassword, hasStaffPassword, isStaffAuthed, setStaffAuthed, setStaffPassword } from "../lib/auth"
+import DrainingBackground from "./DrainingBackground"
+import FallingBottles from "./FallingBottles"
+import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
+import limoncelloBottle from "../assets/limoncello-bottle.webp"
 
 export default function StaffGate() {
   const [authed, setAuthed] = useState(isStaffAuthed())
@@ -39,55 +43,70 @@ export default function StaffGate() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0f2240] px-4">
-      <form
-        onSubmit={hasPassword ? handleLogin : handleSetup}
-        className="w-full max-w-sm space-y-3 rounded-lg border border-white/15 bg-[#1b3a6b] p-6"
-      >
-        <p className="text-base font-medium text-[#fbf3e4]">
-          {hasPassword ? "Staff sign-in" : "Set a staff password"}
-        </p>
-        <p className="text-sm text-[#c9beb1]">
-          {hasPassword
-            ? "This area is for you and your staff only."
-            : "Nobody's set one up on this device yet. Choose a password staff will use to get in."}
-        </p>
+    // Same limoncello theme, draining background, and falling bottles as the
+    // home page itself — once the password's entered, this hands off into
+    // the exact same backdrop rather than cutting from a plain login box to
+    // a completely different-looking page.
+    <div className="theme-limoncello relative flex min-h-screen items-center justify-center px-4 text-[var(--cream)]">
+      <DrainingBackground />
+      <FallingBottles bottleImg={limoncelloBottle} />
 
-        <input
-          type="password"
-          autoFocus
-          className="h-9 w-full rounded-md border border-white/20 bg-[#0f2240] px-3 text-sm text-[#fbf3e4]"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+      <div className="relative flex w-full max-w-sm flex-col items-center">
+        <img
+          src={logoLimoncelloHero}
+          alt="Pour Decisions — match, mix, sip"
+          className="mb-6 h-56 w-auto sm:h-80 md:h-96"
         />
 
-        {!hasPassword && (
+        <form
+          onSubmit={hasPassword ? handleLogin : handleSetup}
+          className="w-full space-y-3 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-6"
+        >
+          <p className="text-base font-medium text-[var(--cream)]">
+            {hasPassword ? "Staff sign-in" : "Set a staff password"}
+          </p>
+          <p className="text-sm text-[var(--cream-dim)]">
+            {hasPassword
+              ? "This area is for you and your staff only."
+              : "Nobody's set one up on this device yet. Choose a password staff will use to get in."}
+          </p>
+
           <input
             type="password"
-            className="h-9 w-full rounded-md border border-white/20 bg-[#0f2240] px-3 text-sm text-[#fbf3e4]"
-            placeholder="Confirm password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            autoFocus
+            className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)]"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
-        )}
 
-        {error && <p className="text-xs text-[#f28095]">{error}</p>}
+          {!hasPassword && (
+            <input
+              type="password"
+              className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)]"
+              placeholder="Confirm password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          )}
 
-        <button
-          type="submit"
-          className="h-9 w-full rounded-md bg-[#e8531b] text-sm font-medium text-[#fbf3e4] hover:bg-[#ffb400]"
-        >
-          {hasPassword ? "Sign in" : "Set password and continue"}
-        </button>
+          {error && <p className="text-xs text-[var(--berry)]">{error}</p>}
 
-        {hasPassword && (
-          <p className="text-xs text-[#c9beb1]">
-            Forgotten it? Clear this site's local storage in your browser to reset and set a new
-            one — that also resets all your stock, archive, and menu data on this device.
-          </p>
-        )}
-      </form>
+          <button
+            type="submit"
+            className="h-9 w-full rounded-md bg-[var(--primary)] text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+          >
+            {hasPassword ? "Sign in" : "Set password and continue"}
+          </button>
+
+          {hasPassword && (
+            <p className="text-xs text-[var(--cream-dim)]">
+              Forgotten it? Clear this site's local storage in your browser to reset and set a new
+              one — that also resets all your stock, archive, and menu data on this device.
+            </p>
+          )}
+        </form>
+      </div>
     </div>
   )
 }
