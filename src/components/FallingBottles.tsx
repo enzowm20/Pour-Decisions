@@ -51,8 +51,12 @@ export default function FallingBottles({ bottleImg }: Props) {
         const topPx = (((fallDistance % loopPx) + loopPx) % loopPx) - height
         const wobble = Math.sin(scrollY / b.wobblePeriod + b.phase) * b.wobbleAmp
         const rotation = (scrollY * b.spinSpeed + b.phase * 40) % 360
-        el.style.top = `${topPx}px`
-        el.style.transform = `translateX(${wobble}px) rotate(${rotation}deg)`
+        // Folding the fall distance into the SAME transform (rather than
+        // animating `top` separately) keeps this entirely compositor-only —
+        // `top` forces a layout recalculation every frame, which is the
+        // difference between buttery-smooth and choppy on weaker hardware
+        // like an iPad's GPU.
+        el.style.transform = `translate3d(${wobble}px, ${topPx}px, 0) rotate(${rotation}deg)`
       })
     },
     location.pathname,
@@ -94,6 +98,7 @@ export default function FallingBottles({ bottleImg }: Props) {
               position: "absolute",
               left: `${b.left}%`,
               top: 0,
+              willChange: "transform",
             }}
           />
         )

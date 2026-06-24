@@ -23,12 +23,19 @@ export default function DrainingBackground() {
     ({ progress, scrollY }) => {
       if (reducedMotion) return
       const waveTop = progress * MAX_DRAIN
+      const viewportH = window.innerHeight
       layers.forEach((layer, i) => {
         const jitter = Math.sin(scrollY / layer.jitterPeriod + layer.phase) * layer.jitterAmp
         const top = Math.min(100, Math.max(0, waveTop - layer.peek + jitter))
         const offsetPx = scrollY * layer.speed
         const layerEl = layerRefs.current[i]
-        if (layerEl) layerEl.style.top = `${top}%`
+        // translateY (a compositor-only transform) instead of animating the
+        // `top` property — `top` forces a synchronous layout recalculation
+        // on every single frame, which is cheap enough on a desktop GPU to
+        // go unnoticed but is exactly what reads as choppy on an iPad's
+        // weaker CPU/GPU pairing. A transform never touches layout, so the
+        // browser can animate it purely on the compositor thread.
+        if (layerEl) layerEl.style.transform = `translate3d(0, ${(top / 100) * viewportH}px, 0)`
         const stripEl = stripRefs.current[i]
         if (stripEl) stripEl.style.backgroundPositionX = `${offsetPx}px`
       })
@@ -37,7 +44,7 @@ export default function DrainingBackground() {
   )
 
   // Reduced motion: static, no scroll-driven movement at all — set once.
-  const staticTop = reducedMotion ? 35 : 0
+  const staticTopPercent = reducedMotion ? 35 : 0
 
   return (
     <div
@@ -51,7 +58,7 @@ export default function DrainingBackground() {
       }}
     >
       {layers.map((layer, i) => {
-        const top = reducedMotion ? Math.max(0, staticTop - layer.peek) : 0
+        const staticTop = reducedMotion ? Math.max(0, staticTopPercent - layer.peek) : 0
         const tile = waveTile(layer.color, layer.variant)
 
         return (
@@ -64,8 +71,13 @@ export default function DrainingBackground() {
               position: "absolute",
               left: 0,
               right: 0,
-              bottom: 0,
-              top: `${top}%`,
+              top: 0,
+              // Fixed full-height box, always anchored at the top — the
+              // scroll-driven position above is purely a transform on this
+              // same box now, never a layout-affecting `top` change.
+              height: "100%",
+              willChange: "transform",
+              transform: `translate3d(0, ${staticTop}vh, 0)`,
               overflow: "hidden",
             }}
           >

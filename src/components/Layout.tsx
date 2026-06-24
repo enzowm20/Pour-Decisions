@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react"
+import { useEffect, useLayoutEffect, useState } from "react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
 import DrainingBackground from "./DrainingBackground"
 import { themeForPath, type ThemeName } from "../lib/theme"
@@ -51,6 +51,32 @@ export default function Layout() {
     window.scrollTo(0, 0)
   }, [location.pathname])
 
+  // The nav dropdowns were CSS-only (:hover), which simply doesn't exist as
+  // a concept on touch devices — tapping a group heading on iPad/phone never
+  // opened anything no matter how many times you pressed it. Tracking which
+  // group is open in state and toggling it on click/tap makes it work on
+  // touch while still behaving the same as before on desktop hover (the
+  // group-hover classes are left in place alongside this).
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
+  useEffect(() => {
+    setOpenGroup(null)
+  }, [location.pathname])
+
+  // Tapping anywhere outside the open dropdown closes it again. Listening
+  // on pointerdown (fires before click) rather than click avoids a flash
+  // where the dropdown would reopen from its own toggle button's click
+  // bubbling up to this same listener.
+  useEffect(() => {
+    if (!openGroup) return
+    function handlePointerDown(e: PointerEvent) {
+      if (!(e.target instanceof Element) || !e.target.closest("[data-nav-group]")) {
+        setOpenGroup(null)
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [openGroup])
+
   function handleLogout() {
     staffLogout()
     window.location.href = "/"
@@ -80,10 +106,12 @@ export default function Layout() {
                   const isGroupActive = group.items.some((item) =>
                     location.pathname.startsWith(item.to),
                   )
+                  const isOpen = openGroup === group.label
                   return (
-                    <div key={group.label} className="group relative">
+                    <div key={group.label} data-nav-group className="group relative">
                       <button
                         type="button"
+                        onClick={() => setOpenGroup((prev) => (prev === group.label ? null : group.label))}
                         className={`rounded-md px-3 py-1.5 text-sm ${
                           isGroupActive
                             ? theme === "bombay"
@@ -95,12 +123,20 @@ export default function Layout() {
                         {group.label}
                       </button>
 
-                      {/* CSS-only hover dropdown. top-full with no margin (and
-                          pt-1 instead) keeps this flush against the button —
-                          a margin gap here is a dead zone the cursor has to
-                          cross with nothing hoverable under it, which is what
-                          made the dropdown disappear before reaching it. */}
-                      <div className="invisible absolute left-0 top-full z-10 min-w-[170px] pt-1 opacity-0 transition group-hover:visible group-hover:opacity-100">
+                      {/* Hover-to-open on desktop (group-hover), tap-to-toggle
+                          on touch devices (isOpen, driven by onClick above —
+                          :hover doesn't exist on touch, so without this a
+                          tapped group heading never opened anything). top-full
+                          with no margin (and pt-1 instead) keeps this flush
+                          against the button — a margin gap here is a dead
+                          zone the cursor has to cross with nothing hoverable
+                          under it, which is what made the dropdown disappear
+                          before reaching it. */}
+                      <div
+                        className={`absolute left-0 top-full z-10 min-w-[170px] pt-1 transition group-hover:visible group-hover:opacity-100 ${
+                          isOpen ? "visible opacity-100" : "invisible opacity-0"
+                        }`}
+                      >
                         <div className="rounded-md border border-[var(--cream-dim)]/20 bg-[var(--cream)] py-1 shadow-md">
                           {group.items.map((item) => (
                             <NavLink
