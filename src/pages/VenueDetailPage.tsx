@@ -10,6 +10,8 @@ import { findFuzzyMatch } from "../lib/fuzzyMatch"
 import IngredientPicker from "../components/IngredientPicker"
 import StatusBadge from "../components/StatusBadge"
 import RevealOnScroll from "../components/RevealOnScroll"
+import FallingBottles from "../components/FallingBottles"
+import chambordBottle from "../assets/chambord-bottle.webp"
 import type { Ingredient } from "../types"
 
 interface ReviewIngredient {
@@ -303,7 +305,8 @@ export default function VenueDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      <FallingBottles bottleImg={chambordBottle} />
       <RevealOnScroll>
         <Link to="/venues" className="text-xs text-[var(--cream-dim)] hover:underline">
           ← Venue scans
@@ -650,7 +653,17 @@ export default function VenueDetailPage() {
                                 )}
                               </p>
                             </div>
-                            <StatusBadge status={missingNames.length > 0 ? "purchase" : result.status} />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                missingNames.length > 0 &&
+                                updateRecipe(recipe.id, { missingIngredientNames: undefined })
+                              }
+                              title={missingNames.length > 0 ? "Mark as in stock" : undefined}
+                              className={missingNames.length > 0 ? "cursor-pointer" : "cursor-default"}
+                            >
+                              <StatusBadge status={missingNames.length > 0 ? "purchase" : result.status} />
+                            </button>
                           </div>
                           {result.items.some((i) => i.status === "substitute") && (
                             <p className="mt-2 border-t border-[var(--cream-dim)]/10 pt-2 text-xs text-[var(--cream-dim)]">

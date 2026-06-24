@@ -141,57 +141,84 @@ export default function ExperimentLabPage() {
     // proven partner of the anchor, not just filling slots.
     const SOFT_CAP: Record<string, number> = {
       spirit: 4,
-      mixer: 4,
+      mixer: 3,
       citrus: 1,
       sweetener: 2,
       fruit: 2,
-      other: 1,
+      other: 2,
     }
-    const MAX_COMBOS = 8
+    const MAX_COMBOS = 30
+    // No single ingredient gets to anchor/pad out more than 2 of these
+    // suggestions — once it's hit that, it's excluded from further combos so
+    // later rounds are forced to reach for different spirits/partners
+    // instead of recombining the same handful over and over.
+    const MAX_USES_PER_INGREDIENT = 2
+    const usageCount = new Map<string, number>()
+    const underCap = (ing: Ingredient) => (usageCount.get(ing.id) ?? 0) < MAX_USES_PER_INGREDIENT
+
     const seenSignatures = new Set<string>()
     const result: Combo[] = []
 
-    for (const anchor of spiritCandidates) {
-      if (result.length >= MAX_COMBOS) break
+    // Multiple passes over the anchor list rather than one combo per anchor
+    // — each round, whichever spirits/partners haven't hit their usage cap
+    // yet are still in play, so a productive round naturally builds a
+    // DIFFERENT combo per anchor than the round before it. Stops once
+    // either 30 combos exist or a full round produces nothing new (every
+    // anchor exhausted or capped out).
+    let producedInLastRound = true
+    while (result.length < MAX_COMBOS && producedInLastRound) {
+      producedInLastRound = false
 
-      // Candidates that pair with the anchor, learned ones first so the
-      // build is anchored in what's actually worked before.
-      const partners = otherPool
-        .filter((c) => qualifies(anchor, c))
-        .sort((a, b) => Number(learnedWith(anchor, b)) - Number(learnedWith(anchor, a)))
+      for (const anchor of spiritCandidates) {
+        if (result.length >= MAX_COMBOS) break
+        if (!underCap(anchor)) continue
 
-      // Extra spirits that have been proven with the anchor — kept deliberate
-      // rather than scattershot.
-      const extraSpirits = spiritCandidates.filter((s) => s.id !== anchor.id && learnedWith(anchor, s))
+        // Candidates that pair with the anchor, learned ones first so the
+        // build is anchored in what's actually worked before. Anything
+        // already at its usage cap is left out, forcing a different
+        // partner into this slot.
+        const partners = otherPool
+          .filter((c) => qualifies(anchor, c) && underCap(c))
+          .sort((a, b) => Number(learnedWith(anchor, b)) - Number(learnedWith(anchor, a)))
 
-      const bySlot: Combo["bySlot"] = {
-        spirit: [anchor, ...extraSpirits.slice(0, SOFT_CAP.spirit - 1)],
+        // Extra spirits that have been proven with the anchor — kept
+        // deliberate rather than scattershot.
+        const extraSpirits = spiritCandidates.filter(
+          (s) => s.id !== anchor.id && learnedWith(anchor, s) && underCap(s),
+        )
+
+        const bySlot: Combo["bySlot"] = {
+          spirit: [anchor, ...extraSpirits.slice(0, SOFT_CAP.spirit - 1)],
+        }
+        const perCategory = new Map<string, number>()
+
+        for (const c of partners) {
+          const cat = c.category as (typeof otherCategories)[number]
+          const used = perCategory.get(cat) ?? 0
+          if (used >= (SOFT_CAP[cat] ?? 1)) continue // category's had enough
+          perCategory.set(cat, used + 1)
+          bySlot[cat] = [...(bySlot[cat] ?? []), c]
+        }
+
+        const total = Object.values(bySlot).flat().length
+        // A lone spirit isn't a suggestion worth showing.
+        if (total < 2) continue
+
+        const allIds = Object.values(bySlot).flat().map((i) => i.id)
+        const signature = signatureOf(allIds)
+        if (seenSignatures.has(signature)) continue
+        seenSignatures.add(signature)
+
+        // Skip anything that already exists as an experiment or menu item —
+        // these are meant to be new.
+        if (knownSignatures.has(signature)) continue
+
+        for (const id of allIds) usageCount.set(id, (usageCount.get(id) ?? 0) + 1)
+
+        const learnedIds = provenMembersWithin(provenGroups, new Set(allIds))
+        result.push({ bySlot, learnedIds })
+        producedInLastRound = true
       }
-      const perCategory = new Map<string, number>()
-
-      for (const c of partners) {
-        const cat = c.category as (typeof otherCategories)[number]
-        const used = perCategory.get(cat) ?? 0
-        if (used >= (SOFT_CAP[cat] ?? 1)) continue // category's had enough
-        perCategory.set(cat, used + 1)
-        bySlot[cat] = [...(bySlot[cat] ?? []), c]
-      }
-
-      const total = Object.values(bySlot).flat().length
-      // A lone spirit isn't a suggestion worth showing.
-      if (total < 2) continue
-
-      const allIds = Object.values(bySlot).flat().map((i) => i.id)
-      const signature = signatureOf(allIds)
-      if (seenSignatures.has(signature)) continue
-      seenSignatures.add(signature)
-
-      // Skip anything that already exists as an experiment or menu item —
-      // these are meant to be new.
-      if (knownSignatures.has(signature)) continue
-
-      const learnedIds = provenMembersWithin(provenGroups, new Set(allIds))
-      result.push({ bySlot, learnedIds })
     }
 
     return result

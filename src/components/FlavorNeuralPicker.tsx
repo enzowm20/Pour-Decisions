@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { FLAVOR_TAGS, type FlavorTag } from "../types"
 
-const VIEW = 380
-const CENTER = VIEW / 2
+// Wide rectangle (matches the picker spanning the full page width) rather
+// than a small square — the coordinate space is still just a viewBox, scaled
+// to whatever the container's actual rendered size is.
+const VIEW_W = 760
+const VIEW_H = 380
+const CENTER_X = VIEW_W / 2
+const CENTER_Y = VIEW_H / 2
 const BASE_RADIUS = 125
-const MIN_GAP = 16
+// How much wider than tall the initial scatter ring is stretched — keeps the
+// resting layout spread across the full width instead of bunching in a
+// circle in the middle of a wide box.
+const ELLIPSE_X = VIEW_W / VIEW_H
+const MIN_GAP = 26
 const GOO_FILTER_ID = "flavor-picker-goo"
 
 interface Props {
@@ -23,7 +32,7 @@ function pseudoRandom(seed: number, salt: number) {
 // radius so longer tags ("refreshing") claim more personal space than short
 // ones ("dry") when nodes get pushed apart.
 function nodeRadius(tag: string) {
-  return 20 + tag.length * 3.1
+  return 26 + tag.length * 3.6
 }
 
 interface Point {
@@ -33,41 +42,90 @@ interface Point {
 }
 
 // Nudges any pair of movable points closer than their combined radii apart,
-// and separately pushes movable points away from fixed obstacles (which
-// don't move themselves) — run for a fixed number of passes so everything
-// settles into a non-overlapping arrangement.
-function relax<T extends Point>(movable: T[], fixed: Point[], passes: number) {
-  for (let pass = 0; pass < passes; pass++) {
+// separately pushes movable points away from fixed obstacles (which don't
+// move themselves), AND keeps every point's full footprint (its own radius,
+// plus however far its idle float animation can carry it) inside the
+// picker's own viewBox — run for a fixed number of passes so everything
+// settles into a non-overlapping, fully-contained arrangement.
+//
+// The edge constraint has to be interleaved into the SAME passes as the
+// repulsion, not applied once afterward — clamping only at the end let
+// several points land on the very same clamped edge position (each pushed
+// there independently, with no later pass to notice they'd collided), which
+// is exactly what produced overlapping tags along the boundary. Doing both
+// together each pass means a point shoved to the edge is still subject to
+// the next pass's pairwise repulsion, sliding it sideways along the edge
+// instead of stacking.
+function repelFromFixed<T extends Point>(movable: T[], fixed: Point[]) {
+  for (const m of movable) {
+    for (const f of fixed) {
+      const dx = m.x - f.x
+      const dy = m.y - f.y
+      const dist = Math.hypot(dx, dy) || 0.01
+      const minDist = m.r + f.r + MIN_GAP
+      if (dist < minDist) {
+        const push = minDist - dist
+        m.x += (dx / dist) * push
+        m.y += (dy / dist) * push
+      }
+    }
+  }
+}
+
+function repelPairs<T extends Point>(movable: T[]) {
+  for (let a = 0; a < movable.length; a++) {
+    for (let b = a + 1; b < movable.length; b++) {
+      const dx = movable[b].x - movable[a].x
+      const dy = movable[b].y - movable[a].y
+      const dist = Math.hypot(dx, dy) || 0.01
+      const minDist = movable[a].r + movable[b].r + MIN_GAP
+      if (dist < minDist) {
+        const push = (minDist - dist) / 2
+        const ux = dx / dist
+        const uy = dy / dist
+        movable[a].x -= ux * push
+        movable[a].y -= uy * push
+        movable[b].x += ux * push
+        movable[b].y += uy * push
+      }
+    }
+  }
+}
+
+// Run for a fixed number of passes so everything settles into a
+// non-overlapping, fully-contained arrangement.
+//
+// The edge constraint has to be interleaved into the SAME passes as the
+// repulsion, not applied once afterward — clamping only at the end let
+// several points land on the very same clamped edge position (each pushed
+// there independently, with no later pass to notice they'd collided), which
+// is exactly what produced overlapping tags along the boundary. Each pass
+// now repels twice around a single clamp, so a point shoved to the edge by
+// the first repulsion gets clamped back in bounds AND THEN still gets a
+// second chance to be pushed off anything it landed on top of as a result —
+// by the time the whole arrangement has converged over many passes, that
+// residual is well under a pixel.
+function relax<T extends Point>(
+  movable: T[],
+  fixed: Point[],
+  passes: number,
+  marginByPoint?: (p: T) => number,
+) {
+  function clamp() {
+    if (!marginByPoint) return
     for (const m of movable) {
-      for (const f of fixed) {
-        const dx = m.x - f.x
-        const dy = m.y - f.y
-        const dist = Math.hypot(dx, dy) || 0.01
-        const minDist = m.r + f.r + MIN_GAP
-        if (dist < minDist) {
-          const push = minDist - dist
-          m.x += (dx / dist) * push
-          m.y += (dy / dist) * push
-        }
-      }
+      const margin = marginByPoint(m)
+      m.x = Math.min(VIEW_W - margin, Math.max(margin, m.x))
+      m.y = Math.min(VIEW_H - margin, Math.max(margin, m.y))
     }
-    for (let a = 0; a < movable.length; a++) {
-      for (let b = a + 1; b < movable.length; b++) {
-        const dx = movable[b].x - movable[a].x
-        const dy = movable[b].y - movable[a].y
-        const dist = Math.hypot(dx, dy) || 0.01
-        const minDist = movable[a].r + movable[b].r + MIN_GAP
-        if (dist < minDist) {
-          const push = (minDist - dist) / 2
-          const ux = dx / dist
-          const uy = dy / dist
-          movable[a].x -= ux * push
-          movable[a].y -= uy * push
-          movable[b].x += ux * push
-          movable[b].y += uy * push
-        }
-      }
-    }
+  }
+  for (let pass = 0; pass < passes; pass++) {
+    repelFromFixed(movable, fixed)
+    repelPairs(movable)
+    clamp()
+    repelFromFixed(movable, fixed)
+    repelPairs(movable)
+    clamp()
   }
   return movable
 }
@@ -117,11 +175,18 @@ function blobPath(cx: number, cy: number, baseR: number, seed: number, variant: 
   return smoothClosedPath(pts)
 }
 
-// Even, eased timing for a 5-keyframe SMIL loop (4 variants + the repeat of
-// the first) — without this, the default linear pacing between very
-// different shapes reads as a snap rather than a slosh.
-const BLOB_KEY_TIMES = "0;0.25;0.5;0.75;1"
-const BLOB_KEY_SPLINES = "0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1;0.45 0 0.55 1"
+// More variants over the same loop duration means each individual morph is
+// a smaller, subtler step — which is what actually reads as continuous
+// organic flow. A spline easing that decelerates into and accelerates out
+// of every keyframe (the old "0.45 0 0.55 1" on each segment) makes the
+// blob visibly pause at each shape before the next move starts, which is
+// the "shifting between movements" feel rather than a flow. Plain linear
+// interpolation at evenly spaced keyframes removes those pauses entirely —
+// with enough variants, constant-velocity interpolation between similar
+// neighboring shapes looks just as smooth as eased interpolation would,
+// without ever stalling.
+const BLOB_VARIANT_COUNT = 7
+const BLOB_KEY_TIMES = Array.from({ length: BLOB_VARIANT_COUNT + 1 }, (_, i) => i / BLOB_VARIANT_COUNT).join(";")
 
 // A plump, rounded bead (not a thin elongated teardrop) plus a tight
 // specular highlight — reads as a condensed drop of water rather than a
@@ -183,36 +248,74 @@ function Droplets({ x, y, nx, ny, seed, count = 3 }: { x: number; y: number; nx:
 // once the cursor leaves) like a satellite system being towed around, while
 // each droplet spins around that anchor at its own radius/speed/phase so the
 // whole group reads as orbiting rather than just trailing behind the mouse.
-function OrbitDroplets({ anchor, t, seed, count = 5 }: { anchor: { x: number; y: number }; t: number; seed: number; count?: number }) {
+//
+// Positioned ENTIRELY outside React's render cycle: each droplet's per-frame
+// transform is written straight to its <g> via a ref, never through state.
+// Driving this through setState (re-rendering the whole picker 60x/sec) was
+// the source of the "laggy bits" — every other moving piece (the active
+// blobs, the orbiting tag pills) was also waiting on that same React commit,
+// so they all stuttered together instead of updating smoothly each frame.
+interface OrbitDropletParams {
+  speed: number
+  radius: number
+  squash: number
+  phase: number
+  size: number
+  fill: string
+}
+
+function useOrbitDropletParams(seed: number, count: number): OrbitDropletParams[] {
+  return useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => {
+        const s = seed + i * 19
+        return {
+          speed: 0.7 + pseudoRandom(s, 1) * 0.7,
+          radius: 22 + pseudoRandom(s, 2) * 16,
+          squash: 0.55 + pseudoRandom(s, 3) * 0.3,
+          phase: pseudoRandom(s, 4) * Math.PI * 2,
+          size: 2.1 + pseudoRandom(s, 5) * 1.5,
+          fill: pseudoRandom(s, 6) > 0.5 ? WATER_AQUA : WATER_SHINE,
+        }
+      }),
+    [seed, count],
+  )
+}
+
+function OrbitDroplets({
+  params,
+  groupRefs,
+}: {
+  params: OrbitDropletParams[]
+  groupRefs: React.MutableRefObject<(SVGGElement | null)[]>
+}) {
   return (
     <>
-      {Array.from({ length: count }, (_, i) => {
-        const s = seed + i * 19
-        const speed = 0.7 + pseudoRandom(s, 1) * 0.7
-        const radius = 22 + pseudoRandom(s, 2) * 16
-        const squash = 0.55 + pseudoRandom(s, 3) * 0.3
-        const phase = pseudoRandom(s, 4) * Math.PI * 2
-        const angle = phase + t * speed
-        const x = anchor.x + radius * Math.cos(angle)
-        const y = anchor.y + radius * Math.sin(angle) * squash
-        // Tangent of the orbit (derivative w.r.t. angle) — orients the
-        // droplet's point along its direction of travel.
-        const tx = -radius * Math.sin(angle)
-        const ty = radius * Math.cos(angle) * squash
-        const rotationDeg = (Math.atan2(ty, tx) * 180) / Math.PI + 90
-        return (
-          <WaterDrop
-            key={i}
-            x={x}
-            y={y}
-            r={2.1 + pseudoRandom(s, 5) * 1.5}
-            rotationDeg={rotationDeg}
-            fill={pseudoRandom(s, 6) > 0.5 ? WATER_AQUA : WATER_SHINE}
-          />
-        )
-      })}
+      {params.map((p, i) => (
+        <g
+          key={i}
+          ref={(el) => {
+            groupRefs.current[i] = el
+          }}
+        >
+          <WaterDrop x={0} y={0} r={p.size} rotationDeg={0} fill={p.fill} />
+        </g>
+      ))}
     </>
   )
+}
+
+// Computes one orbit droplet's transform for the given anchor/time and
+// writes it straight to the DOM — called every frame from the rAF loop.
+function updateOrbitDroplet(el: SVGGElement | null, p: OrbitDropletParams, anchor: { x: number; y: number }, t: number) {
+  if (!el) return
+  const angle = p.phase + t * p.speed
+  const x = anchor.x + p.radius * Math.cos(angle)
+  const y = anchor.y + p.radius * Math.sin(angle) * p.squash
+  const tx = -p.radius * Math.sin(angle)
+  const ty = p.radius * Math.cos(angle) * p.squash
+  const rotationDeg = (Math.atan2(ty, tx) * 180) / Math.PI + 90
+  el.setAttribute("transform", `translate(${x} ${y}) rotate(${rotationDeg})`)
 }
 
 // Just the morphing outline + glossy body of the "thinking" core — no
@@ -239,7 +342,10 @@ function WaterBlobShape({
   stretchX?: number
 }) {
   const REF_R = 20
-  const variants = useMemo(() => [0, 1, 2, 3].map((v) => blobPath(0, 0, REF_R, seed, v)), [seed])
+  const variants = useMemo(
+    () => Array.from({ length: BLOB_VARIANT_COUNT }, (_, v) => blobPath(0, 0, REF_R, seed, v)),
+    [seed],
+  )
   const values = `${variants.join(";")};${variants[0]}`
   const gradId = `water-body-${seed}`
   const clipId = `water-clip-${seed}`
@@ -266,9 +372,8 @@ function WaterBlobShape({
             attributeName="d"
             values={values}
             keyTimes={BLOB_KEY_TIMES}
-            keySplines={BLOB_KEY_SPLINES}
-            calcMode="spline"
-            dur="11s"
+            calcMode="linear"
+            dur="14s"
             repeatCount="indefinite"
           />
         </path>
@@ -277,9 +382,8 @@ function WaterBlobShape({
             attributeName="d"
             values={values}
             keyTimes={BLOB_KEY_TIMES}
-            keySplines={BLOB_KEY_SPLINES}
-            calcMode="spline"
-            dur="8.5s"
+            calcMode="linear"
+            dur="10.5s"
             repeatCount="indefinite"
           />
         </path>
@@ -299,6 +403,10 @@ interface TagSim {
   angle: number
   settled: boolean
   formUntil: number
+  // Set the instant a tag settles into the whirlpool — its own engulfing
+  // blob fades out over this window rather than vanishing immediately,
+  // since by then it's deep inside the central blob's own body anyway.
+  mergeFadeUntil?: number
 }
 
 export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
@@ -312,47 +420,88 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       return {
         tag,
         angle,
-        x: CENTER + radius * Math.cos(angle),
-        y: CENTER + radius * Math.sin(angle),
+        x: CENTER_X + radius * ELLIPSE_X * Math.cos(angle),
+        y: CENTER_Y + radius * Math.sin(angle),
         r: nodeRadius(tag),
+        ampX: (pseudoRandom(i, 3) - 0.5) * 10,
+        ampY: 8 + pseudoRandom(i, 4) * 6,
       }
     })
-    relax(points, [], 60)
+    // Margin includes the node's own pill radius AND its float amplitude —
+    // without the latter, a node could rest right at the safe edge and then
+    // still drift past it every time its idle animation swings outward.
+    relax(points, [], 90, (p) => p.r + Math.max(Math.abs(p.ampX), p.ampY) + 4)
     return points.map((p, i) => ({
       ...p,
       duration: 5 + pseudoRandom(i, 1) * 3,
       delay: pseudoRandom(i, 2) * 4,
-      ampX: (pseudoRandom(i, 3) - 0.5) * 10,
-      ampY: 8 + pseudoRandom(i, 4) * 6,
     }))
   }, [])
 
   const hasSelection = selectedTags.length > 0
 
   const tagSimRef = useRef<Map<FlavorTag, TagSim>>(new Map())
+  // Clockwise arrival order of tags that have actually settled into the
+  // whirlpool — this (not raw timing) is what assigns each one its slot
+  // around the circle, so they're always evenly spaced no matter when they
+  // happened to arrive.
+  const settledOrderRef = useRef<FlavorTag[]>([])
+  // Slowly rotates the whole ring of slots together, so the formation as a
+  // unit drifts clockwise even though each tag holds its own spot in line.
+  const whirlPhaseRef = useRef(0)
+
+  // Seeded synchronously during render (not in a useEffect) so a freshly
+  // picked tag's simulation exists from its very first paint — waiting a
+  // render for an effect left a one-frame window where the blob/pill had no
+  // simulated position yet, which is what made a freshly picked tag's blob
+  // flash at the SVG's coordinate origin (top-left) before snapping to the
+  // right spot.
+  for (const tag of selectedTags) {
+    if (tagSimRef.current.has(tag)) continue
+    const start = nodes.find((n) => n.tag === tag)
+    tagSimRef.current.set(tag, {
+      x: start?.x ?? CENTER_X,
+      y: start?.y ?? CENTER_Y,
+      angle: 0,
+      settled: false,
+      formUntil: performance.now() + 1400,
+    })
+  }
+  for (const tag of Array.from(tagSimRef.current.keys())) {
+    if (!selectedTags.includes(tag)) {
+      tagSimRef.current.delete(tag)
+      const idx = settledOrderRef.current.indexOf(tag)
+      if (idx !== -1) settledOrderRef.current.splice(idx, 1)
+    }
+  }
 
   // The blob only swells once a picked tag has actually arrived and merged
   // in — not the instant it's clicked — so growth reads as "absorbing" each
-  // one rather than jumping ahead of the animation.
+  // one rather than jumping ahead of the animation. It also grows with the
+  // widest currently-selected label, so the whirlpool ring (sized off this
+  // same radius below) always has room for every pill's full text without
+  // any of them poking past the blob's own edge.
   const tagSimSnapshot = tagSimRef.current
   const mergedCount = selectedTags.filter((tag) => tagSimSnapshot.get(tag)?.settled).length
-  const blobRadius = Math.min(26 + mergedCount * 4.2, 50)
+  const maxTagRadius = selectedTags.length > 0 ? Math.max(...selectedTags.map(nodeRadius)) : 0
+  const blobRadius = Math.min(34 + mergedCount * 7 + maxTagRadius * 0.7, 120)
   // How far out the whirlpool sits — comfortably inside the blob's own
   // radius (and well clear of its edge), so swirling tags never read as
   // floating past its bounds.
-  const whirlRadius = blobRadius * 0.32
+  const whirlRadius = blobRadius * 0.46
 
   // The central blob is a fixed obstacle for the resting layout below —
-  // this is what stops idle tags from ever drifting on top of it. Picked
-  // tags are no longer laid out by this relax pass at all (see the gravity
-  // simulation further down) — they leave it the moment they're picked.
-  const blobObstacle: Point = { x: CENTER, y: CENTER, r: blobRadius + 12 }
+  // this is what stops idle tags from ever drifting near it or the selected
+  // tags swirling inside it. A generous margin (not just the bare radius)
+  // keeps a real gap rather than letting idle tags rest right up against
+  // its edge.
+  const blobObstacle: Point = { x: CENTER_X, y: CENTER_Y, r: blobRadius + 30 }
 
   const restingPositions = useMemo(() => {
     const inactive = nodes
       .filter((n) => !selectedTags.includes(n.tag))
-      .map((n) => ({ tag: n.tag, x: n.x, y: n.y, r: n.r }))
-    relax(inactive, [blobObstacle], 60)
+      .map((n) => ({ tag: n.tag, x: n.x, y: n.y, r: n.r, ampX: n.ampX, ampY: n.ampY }))
+    relax(inactive, [blobObstacle], 90, (p) => p.r + Math.max(Math.abs(p.ampX), p.ampY) + 4)
     return new Map(inactive.map((p) => [p.tag, { x: p.x, y: p.y }]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, selectedTags, blobRadius])
@@ -365,41 +514,29 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
   const whirlRadiusRef = useRef(whirlRadius)
   whirlRadiusRef.current = whirlRadius
 
-  // Whenever a tag is freshly picked, start its simulation from wherever it
-  // was just resting — gravity doesn't even start pulling until "formUntil"
-  // has passed, giving the blob time to visibly form around the label
-  // first. Whenever one is unpicked, drop it from the sim; the render below
-  // falls back to the ordinary resting layout (with its normal CSS
-  // transition) for it.
-  useEffect(() => {
-    const sim = tagSimRef.current
-    for (const tag of selectedTags) {
-      if (sim.has(tag)) continue
-      const start = nodes.find((n) => n.tag === tag)
-      sim.set(tag, {
-        x: start?.x ?? CENTER,
-        y: start?.y ?? CENTER,
-        angle: 0,
-        settled: false,
-        formUntil: performance.now() + 900,
-      })
-    }
-    for (const tag of Array.from(sim.keys())) {
-      if (!selectedTags.includes(tag)) sim.delete(tag)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTags])
-
   const containerRef = useRef<HTMLDivElement>(null)
   const cursorRef = useRef<{ x: number; y: number } | null>(null)
-  const [orbit, setOrbit] = useState({ x: CENTER, y: CENTER, t: 0 })
+  const orbitRef = useRef({ x: CENTER_X, y: CENTER_Y, t: 0 })
+  const orbitDropletParams = useOrbitDropletParams(11, 5)
+  const orbitDropletRefs = useRef<(SVGGElement | null)[]>([])
+  const blobGroupRefs = useRef<Map<FlavorTag, SVGGElement>>(new Map())
+  const pillRefs = useRef<Map<FlavorTag, HTMLDivElement>>(new Map())
+
+  // Forces a render only when a tag actually finishes its journey into the
+  // whirlpool (the central blob grows a notch) — every other frame's motion
+  // below is written straight to the DOM via refs, never through setState,
+  // so it can never be held up by (or stutter against) a React commit. That
+  // per-frame setState was the actual source of the "lagging bits": it
+  // forced the WHOLE picker — every blob path, every droplet, every idle
+  // tag — to re-render 60 times a second just to move one number.
+  const [, forceMergeRender] = useState(0)
+  const lastSettledCountRef = useRef(mergedCount)
 
   // One shared animation loop: the orbit-droplet anchor eases toward the
   // cursor (or back to the blob's center), AND every picked tag gets pulled
   // in by the blob's "gravity" until it's close enough to peel off into a
-  // clockwise orbit of its own — a whirlpool. Driven by refs + a single
-  // re-render-triggering state update so positions read as continuous
-  // motion rather than a CSS transition chasing a constantly moving target.
+  // clockwise orbit of its own — a whirlpool. Every position is committed
+  // directly to its DOM node each frame for buttery, uninterrupted motion.
   useEffect(() => {
     let raf = 0
     let last = performance.now()
@@ -407,15 +544,20 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       const dt = Math.min((now - last) / 1000, 0.05)
       last = now
 
-      setOrbit((prev) => {
-        const target = cursorRef.current ?? { x: CENTER, y: CENTER }
-        const ease = 1 - Math.pow(0.0008, dt)
-        return {
-          x: prev.x + (target.x - prev.x) * ease,
-          y: prev.y + (target.y - prev.y) * ease,
-          t: prev.t + dt,
-        }
-      })
+      const target = cursorRef.current ?? { x: CENTER_X, y: CENTER_Y }
+      const orbitEase = 1 - Math.pow(0.0008, dt)
+      const orbit = orbitRef.current
+      orbit.x += (target.x - orbit.x) * orbitEase
+      orbit.y += (target.y - orbit.y) * orbitEase
+      orbit.t += dt
+
+      orbitDropletParams.forEach((p, i) => updateOrbitDroplet(orbitDropletRefs.current[i], p, orbit, orbit.t))
+
+      // The whole ring of whirlpool "slots" drifts clockwise together,
+      // nice and slowly — each settled tag eases toward its own slot in
+      // this ring rather than spinning freely, which is what keeps them
+      // evenly spaced (never overlapping) no matter when each one arrived.
+      whirlPhaseRef.current += dt * 0.22
 
       const whirlR = whirlRadiusRef.current
       for (const tag of selectedTagsRef.current) {
@@ -426,36 +568,87 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         // gravity has any pull at all.
         if (now < sim.formUntil) continue
 
-        const dx = CENTER - sim.x
-        const dy = CENTER - sim.y
-        const dist = Math.hypot(dx, dy)
-        if (!sim.settled && dist <= whirlR * 1.15) sim.settled = true
-
         if (!sim.settled) {
-          // Gravity: a slow, steady ease in toward the core — this is the
-          // "gradually pulled in" leg of the journey.
-          const pull = 1 - Math.pow(0.18, dt)
-          sim.x += dx * pull
-          sim.y += dy * pull
+          const dx = CENTER_X - sim.x
+          const dy = CENTER_Y - sim.y
+          const dist = Math.hypot(dx, dy)
+          if (dist <= whirlR * 1.15) {
+            sim.settled = true
+            // Start the whirlpool angle from wherever the tag actually just
+            // arrived, not the simulation's stale initial 0 — without this,
+            // the very first whirlpool frame targets whatever point angle 0
+            // maps to, which is usually nowhere near the arrival point, and
+            // the easing then visibly snaps/redirects toward it. That snap
+            // is what reads as a "choppy" stutter right at the merge.
+            sim.angle = Math.atan2(sim.y - CENTER_Y, sim.x - CENTER_X)
+            // Once a tag is this deep inside the central blob, its own
+            // engulfing blob is just a second, independently-animated body
+            // overlapping the central one under the same goo filter — two
+            // separately sloshing surfaces never line up frame to frame,
+            // which is what reads as a jolt at each of the merge points.
+            // Fading it out (rather than cutting it instantly) leaves the
+            // central blob as the only thing visibly moving there.
+            sim.mergeFadeUntil = now + 700
+            settledOrderRef.current.push(tag)
+          } else {
+            // Gravity: a slow, steady ease in toward the core — this is the
+            // "gradually pulled in" leg of the journey. A much gentler decay
+            // than before, so the pull reads as a slow current, not a snap.
+            const pull = 1 - Math.pow(0.55, dt)
+            sim.x += dx * pull
+            sim.y += dy * pull
+          }
         } else {
-          // Whirlpool: orbit clockwise (angle increasing is clockwise in
-          // screen space, where y points down) at a fixed radius well
-          // inside the blob, easing smoothly toward that rotating point
-          // rather than snapping to it. Slow rotation reads as a gentle
-          // whirlpool, not a spin cycle.
-          sim.angle += dt * 0.55
-          const tx = CENTER + whirlR * Math.cos(sim.angle)
-          const ty = CENTER + whirlR * Math.sin(sim.angle)
-          const ease = 1 - Math.pow(0.01, dt)
+          // Whirlpool: each settled tag holds an evenly spaced slot around
+          // the ring (its index among all settled tags), so N tags are
+          // always 360/N degrees apart — never bunched together — while the
+          // whole ring slowly rotates clockwise via whirlPhaseRef.
+          const slot = settledOrderRef.current.indexOf(tag)
+          const count = settledOrderRef.current.length
+          const targetAngle =
+            whirlPhaseRef.current + (slot >= 0 ? (slot / Math.max(count, 1)) * Math.PI * 2 : 0)
+          // Shortest-path angular easing — without normalizing into [-π, π]
+          // first, a tag could spin the long way round whenever the target
+          // wraps past 2π, which reads as a jolt rather than a smooth glide.
+          let delta = ((targetAngle - sim.angle + Math.PI) % (Math.PI * 2)) - Math.PI
+          if (delta < -Math.PI) delta += Math.PI * 2
+          const angleEase = 1 - Math.pow(0.12, dt)
+          sim.angle += delta * angleEase
+
+          const spacedRadius = whirlR + Math.min(count, 6) * 4
+          const tx = CENTER_X + spacedRadius * Math.cos(sim.angle)
+          const ty = CENTER_Y + spacedRadius * Math.sin(sim.angle)
+          const ease = 1 - Math.pow(0.12, dt)
           sim.x += (tx - sim.x) * ease
           sim.y += (ty - sim.y) * ease
         }
+
+        const blobEl = blobGroupRefs.current.get(tag)
+        if (blobEl) {
+          blobEl.setAttribute("transform", `translate(${sim.x} ${sim.y})`)
+          if (sim.mergeFadeUntil !== undefined) {
+            const remaining = sim.mergeFadeUntil - now
+            blobEl.style.opacity = String(Math.max(0, Math.min(1, remaining / 700)))
+          }
+        }
+        const pillEl = pillRefs.current.get(tag)
+        if (pillEl) {
+          pillEl.style.left = `${(sim.x / VIEW_W) * 100}%`
+          pillEl.style.top = `${(sim.y / VIEW_H) * 100}%`
+        }
+      }
+
+      const settledCount = selectedTagsRef.current.filter((t) => tagSimRef.current.get(t)?.settled).length
+      if (settledCount !== lastSettledCountRef.current) {
+        lastSettledCountRef.current = settledCount
+        forceMergeRender((v) => v + 1)
       }
 
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
@@ -463,8 +656,8 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
     if (!el) return
     const rect = el.getBoundingClientRect()
     cursorRef.current = {
-      x: ((e.clientX - rect.left) / rect.width) * VIEW,
-      y: ((e.clientY - rect.top) / rect.height) * VIEW,
+      x: ((e.clientX - rect.left) / rect.width) * VIEW_W,
+      y: ((e.clientY - rect.top) / rect.height) * VIEW_H,
     }
   }
 
@@ -488,9 +681,9 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
       onMouseLeave={() => {
         cursorRef.current = null
       }}
-      className="relative mx-auto mb-6 aspect-square w-full max-w-[400px] overflow-visible"
+      className="relative mx-auto mb-6 aspect-[2/1] w-full overflow-visible"
     >
-      <svg viewBox={`0 0 ${VIEW} ${VIEW}`} className="absolute inset-0 h-full w-full overflow-visible">
+      <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="absolute inset-0 h-full w-full overflow-visible">
         <defs>
           {/* The "goo" trick: blur everything in the group together, then
               push contrast back up past a threshold — wherever two blurred
@@ -511,13 +704,13 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         {/* Droplets originating from the blob, orbiting a lagged anchor that
             eases toward the cursor — like little satellites being towed
             around, no connecting stream here. */}
-        <OrbitDroplets anchor={{ x: orbit.x, y: orbit.y }} t={orbit.t} seed={11} count={5} />
+        <OrbitDroplets params={orbitDropletParams} groupRefs={orbitDropletRefs} />
 
         {/* Every blob shape (core + one per picked tag) shares this filter,
             so anything close enough pools into the central body via surface
             tension rather than being linked by a drawn connector. */}
         <g filter={`url(#${GOO_FILTER_ID})`}>
-          <WaterBlobShape cx={CENTER} cy={CENTER} radius={blobRadius} seed={7} active={hasSelection} />
+          <WaterBlobShape cx={CENTER_X} cy={CENTER_Y} radius={blobRadius} seed={7} active={hasSelection} />
           {selectedTags.map((tag, i) => {
             const sim = tagSimRef.current.get(tag)
             if (!sim) return null
@@ -529,8 +722,25 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
             // the central body — no separate connector shape needed.
             const stretchX = Math.min(1.5 + tag.length * 0.22, 4.2)
             return (
-              <g key={`node-blob-${tag}`} className="blob-pop-in">
-                <WaterBlobShape cx={sim.x} cy={sim.y} radius={13} seed={tagSeed} active sweep stretchX={stretchX} />
+              // Position lives on this OUTER group only — the inner group
+              // below carries the "blob-pop-in" scale-in animation, which
+              // drives the CSS `transform` property. Putting both on the
+              // SAME element was the actual bug: CSS `transform` overrides
+              // the SVG `transform` ATTRIBUTE entirely for the duration of
+              // that animation, which silently dropped this translate and
+              // left the blob sitting at the SVG's raw origin (top-left)
+              // every time a tag was freshly picked.
+              <g
+                key={`node-blob-${tag}`}
+                ref={(el) => {
+                  if (el) blobGroupRefs.current.set(tag, el)
+                  else blobGroupRefs.current.delete(tag)
+                }}
+                transform={`translate(${sim.x} ${sim.y})`}
+              >
+                <g className="blob-pop-in">
+                  <WaterBlobShape cx={0} cy={0} radius={18} seed={tagSeed} active sweep stretchX={stretchX} />
+                </g>
               </g>
             )
           })}
@@ -544,8 +754,8 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
           return (
             <Droplets
               key={i}
-              x={CENTER + r * Math.cos(angle)}
-              y={CENTER + r * Math.sin(angle)}
+              x={CENTER_X + r * Math.cos(angle)}
+              y={CENTER_Y + r * Math.sin(angle)}
               nx={Math.cos(angle)}
               ny={Math.sin(angle)}
               seed={7 + i * 23}
@@ -572,10 +782,15 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
         return (
           <div
             key={tag}
+            ref={(el) => {
+              if (!isActive) return
+              if (el) pillRefs.current.set(tag, el)
+              else pillRefs.current.delete(tag)
+            }}
             style={
               {
-                left: `${(pos.x / VIEW) * 100}%`,
-                top: `${(pos.y / VIEW) * 100}%`,
+                left: `${(pos.x / VIEW_W) * 100}%`,
+                top: `${(pos.y / VIEW_H) * 100}%`,
                 transition,
                 animationDuration: `${duration}s`,
                 animationDelay: `${delay}s`,
@@ -583,14 +798,19 @@ export default function FlavorNeuralPicker({ selectedTags, onToggle }: Props) {
                 "--ampy": `${ampY}px`,
               } as React.CSSProperties
             }
-            className={`absolute ${isActive ? "" : "neuron-float"}`}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 ${isActive ? "" : "neuron-float"}`}
           >
             <button
               type="button"
               onClick={() => onToggle(tag)}
+              style={
+                isActive
+                  ? ({ filter: "drop-shadow(0 0 3px #f2dd72) drop-shadow(0 0 7px #f2dd72)" } as React.CSSProperties)
+                  : undefined
+              }
               className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out hover:scale-125 ${
                 isActive
-                  ? "text-[var(--gold)] drop-shadow-[0_0_6px_var(--gold)]"
+                  ? "text-[#0a1f3d]"
                   : "border border-[var(--cream-dim)]/25 bg-[var(--surface-raised)] text-[var(--cream-dim)] hover:border-[var(--gold)]/60 hover:text-[var(--cream)]"
               }`}
             >

@@ -90,7 +90,13 @@ export interface Scan {
   photos: string[]
 }
 
-export type MenuCategory = "core" | "seasonal" | "event-special" | "venue-hybrid" | "discontinued"
+export type MenuCategory =
+  | "core"
+  | "seasonal"
+  | "event-special"
+  | "venue-hybrid"
+  | "mocktail"
+  | "discontinued"
 
 export interface Recipe {
   id: string

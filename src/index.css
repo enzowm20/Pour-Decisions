@@ -39,14 +39,20 @@ body {
 
 /* Experiment Lab flavor picker — floating "neuron" buttons around a pulsing
    core, with organic synapse arcs drawn to whichever ones are selected. A
-   single smooth bob, not a multi-point erratic wander — these should read as
-   calmly floating, not jittering. */
+   rounded drifting loop (not a single back-and-forth line) so it reads as
+   calmly floating rather than rigidly ticking between two fixed points. */
 @keyframes neuron-float {
   0%, 100% {
     transform: translate(-50%, -50%) translate(0, 0);
   }
+  22% {
+    transform: translate(-50%, -50%) translate(var(--ampx), calc(var(--ampy) * -0.55));
+  }
   50% {
-    transform: translate(-50%, -50%) translate(var(--ampx), calc(var(--ampy) * -1));
+    transform: translate(-50%, -50%) translate(calc(var(--ampx) * 0.3), calc(var(--ampy) * -1));
+  }
+  78% {
+    transform: translate(-50%, -50%) translate(calc(var(--ampx) * -0.7), calc(var(--ampy) * -0.35));
   }
 }
 .neuron-float {
@@ -246,6 +252,10 @@ body {
 
 /* Home — Ambra Limoncello: yellow liquid, near-black surfaces, pink/teal/gold accents. */
 .theme-limoncello {
+  /* Lighter, off-white fill behind the draining liquid layers — the old
+     pale-yellow cream sat too close to the liquid's own gold tones, so the
+     drain boundary barely showed. */
+  --drain-bg: color-mix(in srgb, #f2dd72 12%, white 88%);
   --bg: #0d0d0d;
   --surface: color-mix(in srgb, #0d0d0d 88%, white 8%);
   --surface-raised: color-mix(in srgb, #0d0d0d 78%, white 14%);

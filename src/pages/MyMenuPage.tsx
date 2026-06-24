@@ -14,6 +14,7 @@ const TABS: { value: MenuCategory; label: string }[] = [
   { value: "seasonal", label: "Seasonal Specials" },
   { value: "event-special", label: "Event Specials" },
   { value: "venue-hybrid", label: "Venue Hybrids" },
+  { value: "mocktail", label: "Mocktails" },
   { value: "discontinued", label: "Discontinued" },
 ]
 
@@ -36,13 +37,13 @@ export default function MyMenuPage() {
         </p>
       </RevealOnScroll>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-nowrap gap-1.5 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.value}
             type="button"
             onClick={() => setTab(t.value)}
-            className={`rounded-full px-3 py-1.5 text-sm ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs ${
               tab === t.value
                 ? "bg-[var(--primary)] text-[var(--on-primary)]"
                 : "bg-[var(--surface-raised)] text-[var(--cream-dim)]"

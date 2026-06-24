@@ -27,7 +27,7 @@ export default function DrainingBackground() {
         position: "fixed",
         inset: 0,
         zIndex: -1,
-        background: "var(--cream)",
+        background: "var(--drain-bg, var(--cream))",
         overflow: "hidden",
       }}
     >

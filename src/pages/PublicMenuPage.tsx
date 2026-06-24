@@ -12,6 +12,7 @@ const TABS: { value: MenuCategory; label: string }[] = [
   { value: "core", label: "Core Menu" },
   { value: "seasonal", label: "Seasonal Specials" },
   { value: "venue-hybrid", label: "Venue Hybrids" },
+  { value: "mocktail", label: "Mocktails" },
 ]
 
 // Public, view-only menu — no password, no staff nav, no cost/margin/editing.
