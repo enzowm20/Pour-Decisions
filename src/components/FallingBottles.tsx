@@ -1,5 +1,6 @@
+import { useRef } from "react"
 import { useLocation } from "react-router-dom"
-import { useScrollProgress } from "../hooks/useScrollProgress"
+import { useScrollFrame } from "../hooks/useScrollProgress"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 
 // Each bottle falls continuously as you scroll and wraps back to the top once
@@ -35,9 +36,27 @@ interface Props {
 
 export default function FallingBottles({ bottleImg }: Props) {
   const location = useLocation()
-  const { scrollY } = useScrollProgress(location.pathname)
   const reducedMotion = usePrefersReducedMotion()
   const images = Array.isArray(bottleImg) ? bottleImg : [bottleImg]
+  const bottleRefs = useRef<(HTMLImageElement | null)[]>([])
+
+  useScrollFrame(
+    ({ scrollY }) => {
+      const loopPx = (LOOP_HEIGHT_VH / 100) * window.innerHeight
+      BOTTLES.forEach((b, i) => {
+        const el = bottleRefs.current[i]
+        if (!el) return
+        const height = b.size * SIZE_MULTIPLIER * ASPECT
+        const fallDistance = scrollY * b.fallSpeed + b.loopFraction * loopPx
+        const topPx = (((fallDistance % loopPx) + loopPx) % loopPx) - height
+        const wobble = Math.sin(scrollY / b.wobblePeriod + b.phase) * b.wobbleAmp
+        const rotation = (scrollY * b.spinSpeed + b.phase * 40) % 360
+        el.style.top = `${topPx}px`
+        el.style.transform = `translateX(${wobble}px) rotate(${rotation}deg)`
+      })
+    },
+    location.pathname,
+  )
 
   // Visible for the whole page, top to bottom — no fade in/out tied to scroll.
   if (reducedMotion) return null
@@ -60,15 +79,13 @@ export default function FallingBottles({ bottleImg }: Props) {
       {BOTTLES.map((b, i) => {
         const size = b.size * SIZE_MULTIPLIER
         const height = size * ASPECT
-        const loopPx = (LOOP_HEIGHT_VH / 100) * window.innerHeight
-        const fallDistance = scrollY * b.fallSpeed + b.loopFraction * loopPx
-        const topPx = (((fallDistance % loopPx) + loopPx) % loopPx) - height
-        const wobble = Math.sin(scrollY / b.wobblePeriod + b.phase) * b.wobbleAmp
-        const rotation = (scrollY * b.spinSpeed + b.phase * 40) % 360
 
         return (
           <img
             key={i}
+            ref={(el) => {
+              bottleRefs.current[i] = el
+            }}
             src={images[i % images.length]}
             alt=""
             width={size}
@@ -76,8 +93,7 @@ export default function FallingBottles({ bottleImg }: Props) {
             style={{
               position: "absolute",
               left: `${b.left}%`,
-              top: topPx,
-              transform: `translateX(${wobble}px) rotate(${rotation}deg)`,
+              top: 0,
             }}
           />
         )

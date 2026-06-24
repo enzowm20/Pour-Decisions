@@ -1,5 +1,6 @@
+import { useRef } from "react"
 import { useLocation } from "react-router-dom"
-import { useScrollProgress } from "../hooks/useScrollProgress"
+import { useScrollFrame } from "../hooks/useScrollProgress"
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion"
 import { waveTile } from "../lib/waveTile"
 import { liquidLayersForTheme, themeForPath } from "../lib/theme"
@@ -10,15 +11,33 @@ const MAX_DRAIN = 95
 
 export default function DrainingBackground() {
   const location = useLocation()
-  const { progress, scrollY } = useScrollProgress(location.pathname)
   const reducedMotion = usePrefersReducedMotion()
 
   const theme = themeForPath(location.pathname)
   const layers = liquidLayersForTheme(theme)
 
-  // Full at the top of the page (0% drained), down to a thin remainder at the
-  // bottom of the page (MAX_DRAIN% drained).
-  const waveTop = reducedMotion ? 35 : progress * MAX_DRAIN
+  const layerRefs = useRef<(HTMLDivElement | null)[]>([])
+  const stripRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  useScrollFrame(
+    ({ progress, scrollY }) => {
+      if (reducedMotion) return
+      const waveTop = progress * MAX_DRAIN
+      layers.forEach((layer, i) => {
+        const jitter = Math.sin(scrollY / layer.jitterPeriod + layer.phase) * layer.jitterAmp
+        const top = Math.min(100, Math.max(0, waveTop - layer.peek + jitter))
+        const offsetPx = scrollY * layer.speed
+        const layerEl = layerRefs.current[i]
+        if (layerEl) layerEl.style.top = `${top}%`
+        const stripEl = stripRefs.current[i]
+        if (stripEl) stripEl.style.backgroundPositionX = `${offsetPx}px`
+      })
+    },
+    location.pathname,
+  )
+
+  // Reduced motion: static, no scroll-driven movement at all — set once.
+  const staticTop = reducedMotion ? 35 : 0
 
   return (
     <div
@@ -32,16 +51,15 @@ export default function DrainingBackground() {
       }}
     >
       {layers.map((layer, i) => {
-        const jitter = reducedMotion
-          ? 0
-          : Math.sin(scrollY / layer.jitterPeriod + layer.phase) * layer.jitterAmp
-        const top = Math.min(100, Math.max(0, waveTop - layer.peek + jitter))
-        const offsetPx = reducedMotion ? 0 : scrollY * layer.speed
+        const top = reducedMotion ? Math.max(0, staticTop - layer.peek) : 0
         const tile = waveTile(layer.color, layer.variant)
 
         return (
           <div
             key={i}
+            ref={(el) => {
+              layerRefs.current[i] = el
+            }}
             style={{
               position: "absolute",
               left: 0,
@@ -54,6 +72,9 @@ export default function DrainingBackground() {
             {/* Wavy surface strip: transparent above the curve (reveals
                 whatever is behind this layer), solid below it. */}
             <div
+              ref={(el) => {
+                stripRefs.current[i] = el
+              }}
               style={{
                 position: "absolute",
                 top: 0,
@@ -63,7 +84,7 @@ export default function DrainingBackground() {
                 backgroundImage: `url("${tile.uri}")`,
                 backgroundRepeat: "repeat-x",
                 backgroundSize: `${tile.width}px ${tile.height}px`,
-                backgroundPositionX: `${offsetPx}px`,
+                backgroundPositionX: 0,
               }}
             />
             {/* Solid body of the liquid, starting right where the wave
