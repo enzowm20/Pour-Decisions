@@ -4,8 +4,8 @@ import { byName } from "../lib/sort"
 import DrainingBackground from "../components/DrainingBackground"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
-import logoGordons from "../assets/logo-gordons.png"
-import gordonsBottle from "../assets/gordons-bottle.webp"
+import logoLimoncello from "../assets/logo-limoncello.png"
+import limoncelloBottle from "../assets/limoncello-bottle.webp"
 import type { MenuCategory } from "../types"
 
 const TABS: { value: MenuCategory; label: string }[] = [
@@ -38,9 +38,9 @@ export default function PublicMenuPage() {
   }
 
   return (
-    <div className="theme-gordons min-h-screen text-[var(--cream)]">
+    <div className="theme-limoncello min-h-screen text-[var(--cream)]">
       <DrainingBackground />
-      <FallingBottles bottleImg={gordonsBottle} />
+      <FallingBottles bottleImg={limoncelloBottle} />
 
       <span className="pointer-events-none fixed bottom-2 left-2 z-20 text-[10px] text-[var(--cream-dim)]/70">
         Designed by Lorenzo Montenegro
@@ -50,7 +50,7 @@ export default function PublicMenuPage() {
           since this is the only thing in this page's header. */}
       <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--cream)]">
         <div className="mx-auto flex max-w-4xl items-center justify-center px-4 py-3">
-          <img src={logoGordons} alt="Pour Decisions — match, mix, sip" className="h-28 w-auto sm:h-44" />
+          <img src={logoLimoncello} alt="Pour Decisions — match, mix, sip" className="h-28 w-auto sm:h-44" />
         </div>
       </header>
 

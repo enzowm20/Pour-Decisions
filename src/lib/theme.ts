@@ -6,7 +6,7 @@ export function themeForPath(pathname: string): ThemeName {
   if (pathname.startsWith("/lab")) return "bombay"
   if (pathname.startsWith("/archive")) return "jager"
   if (pathname.startsWith("/menu")) return "gordons"
-  if (pathname.startsWith("/public-menu")) return "gordons"
+  if (pathname.startsWith("/public-menu")) return "limoncello"
   return "limoncello"
 }
 
