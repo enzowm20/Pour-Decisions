@@ -48,7 +48,7 @@ export default function PublicMenuPage() {
 
       {/* Matches the staff header's format — logo on a cream strip, just larger,
           since this is the only thing in this page's header. */}
-      <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--cream)]">
+      <header className="border-b border-[var(--cream-dim)]/15 bg-[var(--drain-bg,var(--cream))]">
         <div className="mx-auto flex max-w-4xl items-center justify-center px-4 py-3">
           <img src={logoLimoncello} alt="Pour Decisions — match, mix, sip" className="h-28 w-auto sm:h-44" />
         </div>
