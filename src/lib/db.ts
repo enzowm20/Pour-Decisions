@@ -19,6 +19,23 @@ export async function upsertRow(table: string, row: Record<string, unknown>) {
   if (error) console.warn(`Couldn't save to "${table}" in Supabase.`, error)
 }
 
+// The site lock is a single shared row ('global') rather than its own
+// add/update/remove trio like every other entity here — there's only ever
+// one of it, and every visitor reads/writes that same row.
+export async function fetchSiteLocked(): Promise<boolean> {
+  const { data, error } = await supabase.from("site_lock").select("locked").eq("id", "global").maybeSingle()
+  if (error) {
+    console.warn("Couldn't fetch site lock state from Supabase.", error)
+    return false
+  }
+  return data?.locked ?? false
+}
+
+export async function setSiteLocked(locked: boolean) {
+  const { error } = await supabase.from("site_lock").upsert({ id: "global", locked })
+  if (error) console.warn("Couldn't save site lock state to Supabase.", error)
+}
+
 export async function deleteRow(table: string, id: string) {
   const { error } = await supabase.from(table).delete().eq("id", id)
   if (error) console.warn(`Couldn't delete from "${table}" in Supabase.`, error)

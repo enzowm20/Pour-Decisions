@@ -1,32 +1,34 @@
-// Client-side staff gate. There's no backend here, so this is a practical
-// deterrent for a shared till/tablet — not real security. Anyone with dev
-// tools open can clear sessionStorage or read the JS to bypass it. The
-// password itself is never stored in plaintext (SHA-256 hash in
-// localStorage), but that's a courtesy, not a defence against tampering.
+// Client-side staff gate. There's no backend auth here, so this is a
+// practical deterrent for casual visitors of the public site — not real
+// security. Anyone with dev tools open can read the JS bundle or call the
+// Supabase API directly with the public anon key, bypassing this entirely.
+// The password itself isn't compared in plaintext (SHA-256 hash, hardcoded
+// below), but that's a courtesy against a quick text-search of the bundle,
+// not a defence against tampering.
 
-const HASH_KEY = "staffPasswordHash"
 const SESSION_KEY = "staffAuthed"
 
-export async function hashPassword(password: string): Promise<string> {
-  const bytes = new TextEncoder().encode(password)
+// SHA-256("pourdecisions!") — the one staff password for every user/device,
+// now that the site is public rather than set up per-device.
+const STAFF_PASSWORD_HASH = "5fbe90035e02e8bd6381eb475c33f15ec49c1dec81097947a1e046333fbd0138"
+
+// SHA-256("201203") — the single code used to both lock and unlock the site.
+const LOCK_CODE_HASH = "d3a7b43aa37fa307825752a71f281016605062f0d3ad8f212321fe933a5fc672"
+
+async function sha256(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text)
   const digest = await crypto.subtle.digest("SHA-256", bytes)
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("")
 }
 
-export function hasStaffPassword(): boolean {
-  return localStorage.getItem(HASH_KEY) !== null
-}
-
-export async function setStaffPassword(password: string): Promise<void> {
-  localStorage.setItem(HASH_KEY, await hashPassword(password))
-}
-
 export async function checkStaffPassword(password: string): Promise<boolean> {
-  const stored = localStorage.getItem(HASH_KEY)
-  if (!stored) return false
-  return (await hashPassword(password)) === stored
+  return (await sha256(password)) === STAFF_PASSWORD_HASH
+}
+
+export async function checkLockCode(code: string): Promise<boolean> {
+  return (await sha256(code)) === LOCK_CODE_HASH
 }
 
 export function isStaffAuthed(): boolean {

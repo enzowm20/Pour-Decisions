@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from "react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
 import DrainingBackground from "./DrainingBackground"
+import SiteLockControl from "./SiteLockControl"
+import { useData } from "../context/DataContext"
 import { themeForPath, type ThemeName } from "../lib/theme"
 import { staffLogout } from "../lib/auth"
 import logoAperol from "../assets/logo-aperol.png"
@@ -42,6 +44,7 @@ const LOGOS: Record<ThemeName, string> = {
 
 export default function Layout() {
   const location = useLocation()
+  const { locked } = useData()
   const theme = themeForPath(location.pathname)
   const isHome = location.pathname === "/"
 
@@ -85,6 +88,22 @@ export default function Layout() {
   return (
     <div className={`theme-${theme} min-h-screen text-[var(--cream)]`}>
       <DrainingBackground />
+
+      {locked && (
+        <div className="fixed inset-x-0 top-0 z-30 bg-[var(--berry)] py-1 text-center text-xs font-medium text-[var(--on-berry)]">
+          Site is locked — view only. Nothing can be added, edited, or deleted until it's unlocked.
+        </div>
+      )}
+
+      {/* Home hides the normal header entirely (see below), so there's
+          nowhere inline to put this — float it instead. Every other page
+          gets it inline next to "Sign out" so it can't overlap that header's
+          own content. */}
+      {isHome && (
+        <div className={`fixed right-3 z-40 ${locked ? "top-10" : "top-3"}`}>
+          <SiteLockControl />
+        </div>
+      )}
 
       {/* Home has its own oversized logo, so skip the header here to avoid
           showing it twice. Every other page gets logo-left, grouped tabs and
@@ -161,6 +180,8 @@ export default function Layout() {
                   )
                 })}
               </nav>
+
+              <SiteLockControl />
 
               <button
                 type="button"

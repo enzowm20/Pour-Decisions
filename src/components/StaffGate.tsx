@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Outlet } from "react-router-dom"
-import { checkStaffPassword, hasStaffPassword, isStaffAuthed, setStaffAuthed, setStaffPassword } from "../lib/auth"
+import { checkStaffPassword, isStaffAuthed, setStaffAuthed } from "../lib/auth"
 import DrainingBackground from "./DrainingBackground"
 import FallingBottles from "./FallingBottles"
 import logoLimoncelloHero from "../assets/logo-limoncello-hero.png"
@@ -8,28 +8,10 @@ import limoncelloBottle from "../assets/limoncello-bottle.webp"
 
 export default function StaffGate() {
   const [authed, setAuthed] = useState(isStaffAuthed())
-  const [hasPassword, setHasPassword] = useState(hasStaffPassword())
   const [password, setPassword] = useState("")
-  const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")
 
   if (authed) return <Outlet />
-
-  async function handleSetup(e: React.FormEvent) {
-    e.preventDefault()
-    if (password.length < 4) {
-      setError("Use at least 4 characters.")
-      return
-    }
-    if (password !== confirm) {
-      setError("Passwords don't match.")
-      return
-    }
-    await setStaffPassword(password)
-    setStaffAuthed()
-    setHasPassword(true)
-    setAuthed(true)
-  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -64,18 +46,9 @@ export default function StaffGate() {
           className="h-56 w-auto sm:h-80 md:h-96"
         />
 
-        <form
-          onSubmit={hasPassword ? handleLogin : handleSetup}
-          className="w-full max-w-sm space-y-3 text-left"
-        >
-          <p className="text-base font-medium text-[var(--cream)]">
-            {hasPassword ? "Staff sign-in" : "Set a staff password"}
-          </p>
-          <p className="text-sm text-[var(--cream-dim)]">
-            {hasPassword
-              ? "This area is for you and your staff only."
-              : "Nobody's set one up on this device yet. Choose a password staff will use to get in."}
-          </p>
+        <form onSubmit={handleLogin} className="w-full max-w-sm space-y-3 text-left">
+          <p className="text-base font-medium text-[var(--cream)]">Staff sign-in</p>
+          <p className="text-sm text-[var(--cream-dim)]">This area is for you and your staff only.</p>
 
           <input
             type="password"
@@ -86,31 +59,14 @@ export default function StaffGate() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {!hasPassword && (
-            <input
-              type="password"
-              className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)]"
-              placeholder="Confirm password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          )}
-
           {error && <p className="text-xs text-[var(--berry)]">{error}</p>}
 
           <button
             type="submit"
             className="h-9 w-full rounded-md bg-[var(--primary)] text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
           >
-            {hasPassword ? "Sign in" : "Set password and continue"}
+            Sign in
           </button>
-
-          {hasPassword && (
-            <p className="text-xs text-[var(--cream-dim)]">
-              Forgotten it? Clear this site's local storage in your browser to reset and set a new
-              one — that also resets all your stock, archive, and menu data on this device.
-            </p>
-          )}
         </form>
       </div>
     </div>
