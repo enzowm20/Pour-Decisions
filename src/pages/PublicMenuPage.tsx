@@ -55,7 +55,7 @@ export default function PublicMenuPage() {
       </header>
 
       <main className="relative mx-auto max-w-4xl px-4 py-6">
-        <RevealOnScroll className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface)] p-4 sm:p-6">
+        <RevealOnScroll className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface)]/70 p-4 sm:p-6">
           <h1 className="mb-1 text-center text-lg font-medium">Our Menu</h1>
           <p className="mb-6 text-center text-sm text-[var(--cream-dim)]">
             What we're pouring right now.
@@ -69,7 +69,7 @@ export default function PublicMenuPage() {
                 onClick={() => setTab(t.value)}
                 className={`rounded-full px-4 py-1.5 text-sm ${
                   tab === t.value
-                    ? "bg-[var(--primary)] text-[var(--on-primary)]"
+                    ? "bg-[var(--teal)] text-[var(--on-teal)]"
                     : "bg-[var(--surface-raised)] text-[var(--cream-dim)]"
                 }`}
               >
@@ -110,7 +110,11 @@ export default function PublicMenuPage() {
                     <button
                       type="button"
                       onClick={() => handleOrder(recipe.id)}
-                      className="mt-auto self-start rounded-md bg-[var(--primary)] px-4 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+                      className={`mt-auto self-start rounded-md px-4 py-1.5 text-sm font-medium ${
+                        orderedId === recipe.id
+                          ? "bg-[var(--berry)] text-[var(--on-berry)]"
+                          : "bg-[var(--teal)] text-[var(--on-teal)] hover:opacity-90"
+                      }`}
                     >
                       {orderedId === recipe.id ? "Ordered ✓" : "Order Cocktail"}
                     </button>
