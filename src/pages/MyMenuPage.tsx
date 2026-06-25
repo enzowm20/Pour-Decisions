@@ -20,7 +20,7 @@ const TABS: { value: MenuCategory; label: string }[] = [
 ]
 
 export default function MyMenuPage() {
-  const { recipes, updateRecipe, removeRecipe, ingredients, substitutions } = useData()
+  const { recipes, updateRecipe, removeRecipe, ingredients, substitutions, locked } = useData()
   const [tab, setTab] = useState<MenuCategory>("core")
 
   const allMenuRecipes = recipes.filter((r) => r.venueId === null)
@@ -82,26 +82,29 @@ export default function MyMenuPage() {
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
                   <StatusBadge status={result.status} />
-                  <label className="flex items-center gap-1 text-xs text-[var(--cream-dim)]">
-                    Move to
-                    <select
-                      value={recipe.menuCategory ?? "core"}
-                      onChange={(e) => updateRecipe(recipe.id, { menuCategory: e.target.value as MenuCategory })}
-                      className="h-7 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
-                    >
-                      {TABS.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <ConfirmButton
-                    onConfirm={() => removeRecipe(recipe.id)}
-                    label="Remove"
-                    className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
-                    confirmClassName="text-xs font-medium text-[var(--berry)]"
-                  />
+                  <fieldset disabled={locked} className="contents">
+                    <label className="flex items-center gap-1 text-xs text-[var(--cream-dim)]">
+                      Move to
+                      <select
+                        value={recipe.menuCategory ?? "core"}
+                        onChange={(e) => updateRecipe(recipe.id, { menuCategory: e.target.value as MenuCategory })}
+                        className="h-7 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {TABS.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <ConfirmButton
+                      disabled={locked}
+                      onConfirm={() => removeRecipe(recipe.id)}
+                      label="Remove"
+                      className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
+                      confirmClassName="text-xs font-medium text-[var(--berry)]"
+                    />
+                  </fieldset>
                 </div>
               </div>
 
@@ -118,7 +121,8 @@ export default function MyMenuPage() {
                       type="number"
                       step="0.01"
                       min="0"
-                      className="h-7 w-20 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
+                      disabled={locked}
+                      className="h-7 w-20 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
                       placeholder="0.00"
                       defaultValue={recipe.sellPrice ?? ""}
                       onBlur={(e) => {

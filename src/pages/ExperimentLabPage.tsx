@@ -40,7 +40,7 @@ function signatureOf(ids: string[]) {
 }
 
 export default function ExperimentLabPage() {
-  const { ingredients, experiments, recipes, substitutions, labQueue, removeFromLabQueue } = useData()
+  const { ingredients, experiments, recipes, substitutions, labQueue, removeFromLabQueue, locked } = useData()
   const navigate = useNavigate()
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
   const [revealedTags, setRevealedTags] = useState<FlavorTag[]>([])
@@ -401,6 +401,7 @@ export default function ExperimentLabPage() {
                       Try this
                     </button>
                     <ConfirmButton
+                      disabled={locked}
                       onConfirm={() => removeFromLabQueue(item.id)}
                       label="Dismiss"
                       className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"

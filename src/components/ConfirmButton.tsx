@@ -8,6 +8,7 @@ interface Props {
   // lets callers swap in a "this is now serious" color (e.g. berry/red)
   // without needing two separate buttons.
   confirmClassName?: string
+  disabled?: boolean
 }
 
 // Two sequential confirmations before anything irreversible happens. First
@@ -16,7 +17,7 @@ interface Props {
 // focus (clicking/tapping anywhere else) disarms it, so a destructive action
 // can never sit "half-confirmed" waiting for an unrelated later tap to land
 // on it by accident.
-export default function ConfirmButton({ onConfirm, label, className, confirmClassName }: Props) {
+export default function ConfirmButton({ onConfirm, label, className, confirmClassName, disabled }: Props) {
   const [step, setStep] = useState<0 | 1 | 2>(0)
 
   function handleClick() {
@@ -31,9 +32,12 @@ export default function ConfirmButton({ onConfirm, label, className, confirmClas
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={handleClick}
       onBlur={() => setStep(0)}
-      className={step > 0 ? (confirmClassName ?? className) : className}
+      className={`disabled:cursor-not-allowed disabled:opacity-50 ${
+        step > 0 ? (confirmClassName ?? className) : className
+      }`}
     >
       {step === 0 ? label : step === 1 ? "Are you sure?" : "Are you VERY sure?"}
     </button>

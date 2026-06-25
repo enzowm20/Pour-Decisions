@@ -18,8 +18,16 @@ const outcomeStyles: Record<ExperimentOutcome, string> = {
 }
 
 export default function ArchivePage() {
-  const { ingredients, experiments, addExperiment, updateExperiment, removeExperiment, recipes, addRecipe } =
-    useData()
+  const {
+    ingredients,
+    experiments,
+    addExperiment,
+    updateExperiment,
+    removeExperiment,
+    recipes,
+    addRecipe,
+    locked,
+  } = useData()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [name, setName] = useState(searchParams.get("name") ?? "")
@@ -107,6 +115,10 @@ export default function ArchivePage() {
       </RevealOnScroll>
 
       <RevealOnScroll delay={100}>
+      {/* fieldset disabled reaches every native input/select/button/textarea
+          nested inside, including ones rendered by child components like
+          IngredientPicker — no need to thread `locked` through each one. */}
+      <fieldset disabled={locked} className="contents">
       <form
         onSubmit={handleSubmit}
         className="space-y-3 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
@@ -209,11 +221,12 @@ export default function ArchivePage() {
 
         <button
           type="submit"
-          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Save experiment
         </button>
       </form>
+      </fieldset>
       </RevealOnScroll>
 
       {experiments.length > 0 && (
@@ -281,8 +294,9 @@ export default function ArchivePage() {
                     {exp.outcome === "worked" && !exp.promotedToMenu && !menuRecipeNames.has(exp.name) && (
                       <button
                         type="button"
+                        disabled={locked}
                         onClick={() => promote(exp.id)}
-                        className="text-xs text-[var(--teal)] hover:underline"
+                        className="text-xs text-[var(--teal)] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Add to my menu
                       </button>
@@ -291,6 +305,7 @@ export default function ArchivePage() {
                       <span className="text-xs text-[var(--sage)]">On your menu</span>
                     )}
                     <ConfirmButton
+                      disabled={locked}
                       onConfirm={() => removeExperiment(exp.id)}
                       label="Remove"
                       className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"

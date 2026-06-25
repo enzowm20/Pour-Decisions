@@ -54,6 +54,7 @@ export default function VenueDetailPage() {
     ingredients,
     substitutions,
     addToLabQueue,
+    locked,
   } = useData()
 
   const venue = venues.find((v) => v.id === routeVenueId)
@@ -328,11 +329,14 @@ export default function VenueDetailPage() {
           Experiment Lab page.
         </p>
 
+        {/* Covers the whole import/manual-log/review workflow below — every
+            control in here either uploads, parses, or saves data. */}
+        <fieldset disabled={locked} className="contents">
         <div className="mb-3 flex items-center gap-2">
           <label className="text-xs text-[var(--cream-dim)]">Date the photo was taken</label>
           <input
             type="date"
-            className="h-9 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-sm text-[var(--cream)]"
+            className="h-9 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-sm text-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
             value={photoDate}
             onChange={(e) => setPhotoDate(e.target.value)}
           />
@@ -342,8 +346,8 @@ export default function VenueDetailPage() {
           type="file"
           accept="image/*,application/pdf"
           onChange={handleMenuFileSelected}
-          disabled={isProcessing}
-          className="text-sm"
+          disabled={isProcessing || locked}
+          className="text-sm disabled:cursor-not-allowed disabled:opacity-50"
         />
         {isProcessing && <p className="mt-2 text-xs text-[var(--cream-dim)]">Reading file…</p>}
         {pendingPhoto && (
@@ -500,6 +504,7 @@ export default function VenueDetailPage() {
             </button>
           </div>
         )}
+        </fieldset>
       </RevealOnScroll>
 
       <section className="space-y-4">
@@ -515,13 +520,14 @@ export default function VenueDetailPage() {
               delay={Math.min(scanI, 8) * 60}
               className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
             >
+              <fieldset disabled={locked} className="contents">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1">
                     <label className="text-xs text-[var(--cream-dim)]">Photo taken</label>
                     <input
                       type="date"
-                      className="h-8 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-xs text-[var(--cream)]"
+                      className="h-8 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-xs text-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
                       value={scan.photoDate}
                       onChange={(e) => updateScan(scan.id, { photoDate: e.target.value })}
                     />
@@ -530,7 +536,7 @@ export default function VenueDetailPage() {
                     <label className="text-xs text-[var(--cream-dim)]">Logged</label>
                     <input
                       type="date"
-                      className="h-8 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-xs text-[var(--cream)]"
+                      className="h-8 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-xs text-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
                       value={scan.date}
                       onChange={(e) => updateScan(scan.id, { date: e.target.value })}
                     />
@@ -540,11 +546,12 @@ export default function VenueDetailPage() {
                   <button
                     type="button"
                     onClick={() => setActiveScanId(isActive ? null : scan.id)}
-                    className="text-xs text-[var(--teal)] hover:underline"
+                    className="text-xs text-[var(--teal)] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isActive ? "Done adding" : "Add cocktail"}
                   </button>
                   <ConfirmButton
+                    disabled={locked}
                     onConfirm={() => removeScan(scan.id)}
                     label="Remove scan"
                     className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
@@ -552,6 +559,7 @@ export default function VenueDetailPage() {
                   />
                 </div>
               </div>
+              </fieldset>
 
               {scan.photos.length > 0 && (
                 <div className="mb-3 flex gap-2">
@@ -575,6 +583,7 @@ export default function VenueDetailPage() {
                   const isEditing = editingRecipeId === recipe.id
                   return (
                     <div key={recipe.id} className="rounded-md border border-[var(--cream-dim)]/15 p-3">
+                      <fieldset disabled={locked} className="contents">
                       {isEditing ? (
                         <div className="space-y-2">
                           <input
@@ -688,6 +697,7 @@ export default function VenueDetailPage() {
                               Send to Experiment Lab
                             </button>
                             <ConfirmButton
+                              disabled={locked}
                               onConfirm={() => removeRecipe(recipe.id)}
                               label="Remove"
                               className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
@@ -696,12 +706,14 @@ export default function VenueDetailPage() {
                           </div>
                         </>
                       )}
+                      </fieldset>
                     </div>
                   )
                 })}
               </div>
 
               {isActive && (
+                <fieldset disabled={locked} className="contents">
                 <div className="mt-3 space-y-2 rounded-md border border-dashed border-[var(--cream-dim)]/25 p-3">
                   <input
                     className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
@@ -722,6 +734,7 @@ export default function VenueDetailPage() {
                     Save cocktail
                   </button>
                 </div>
+                </fieldset>
               )}
             </RevealOnScroll>
           )

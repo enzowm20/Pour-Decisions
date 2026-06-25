@@ -10,7 +10,7 @@ import ConfirmButton from "../components/ConfirmButton"
 import chambordBottle from "../assets/chambord-bottle.webp"
 
 export default function VenuesPage() {
-  const { venues, addVenue, updateVenue, scans, recipes, removeVenue } = useData()
+  const { venues, addVenue, updateVenue, scans, recipes, removeVenue, locked } = useData()
   const [name, setName] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
@@ -23,6 +23,7 @@ export default function VenuesPage() {
   }
 
   function startEdit(id: string, current: string) {
+    if (locked) return
     setEditingId(id)
     setEditName(current)
   }
@@ -41,20 +42,22 @@ export default function VenuesPage() {
           Track other venues' menus over time and compare them to your stock.
         </p>
 
-        <form onSubmit={handleAdd} className="mb-4 flex gap-2">
-          <input
-            className="h-9 flex-1 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
-            placeholder="Venue name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
-          >
-            Add venue
-          </button>
-        </form>
+        <fieldset disabled={locked} className="contents">
+          <form onSubmit={handleAdd} className="mb-4 flex gap-2">
+            <input
+              className="h-9 flex-1 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60 disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="Venue name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <button
+              type="submit"
+              className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add venue
+            </button>
+          </form>
+        </fieldset>
       </RevealOnScroll>
 
       <div className="divide-y divide-[var(--cream-dim)]/15 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)]">
@@ -96,6 +99,7 @@ export default function VenuesPage() {
                   Open
                 </Link>
                 <ConfirmButton
+                  disabled={locked}
                   onConfirm={() => removeVenue(venue.id)}
                   label="Remove"
                   className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"

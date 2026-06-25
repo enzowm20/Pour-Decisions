@@ -4,7 +4,7 @@ import { byName } from "../lib/sort"
 import ConfirmButton from "./ConfirmButton"
 
 export default function SubstitutionManager() {
-  const { ingredients, substitutions, addSubstitution, removeSubstitution } = useData()
+  const { ingredients, substitutions, addSubstitution, removeSubstitution, locked } = useData()
 
   const [subIngredientName, setSubIngredientName] = useState("")
   const [subSubstituteName, setSubSubstituteName] = useState("")
@@ -48,29 +48,31 @@ export default function SubstitutionManager() {
         ))}
       </datalist>
 
-      <form onSubmit={handleAddSubstitution} className="mb-2 flex flex-wrap items-end gap-2">
-        <input
-          list="ingredient-names"
-          className={inputClass}
-          placeholder="Missing ingredient..."
-          value={subIngredientName}
-          onChange={(e) => setSubIngredientName(e.target.value)}
-        />
-        <span className="text-sm text-[var(--cream-dim)]">use instead</span>
-        <input
-          list="ingredient-names"
-          className={inputClass}
-          placeholder="Substitute..."
-          value={subSubstituteName}
-          onChange={(e) => setSubSubstituteName(e.target.value)}
-        />
-        <button
-          type="submit"
-          className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
-        >
-          Add rule
-        </button>
-      </form>
+      <fieldset disabled={locked} className="contents">
+        <form onSubmit={handleAddSubstitution} className="mb-2 flex flex-wrap items-end gap-2">
+          <input
+            list="ingredient-names"
+            className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
+            placeholder="Missing ingredient..."
+            value={subIngredientName}
+            onChange={(e) => setSubIngredientName(e.target.value)}
+          />
+          <span className="text-sm text-[var(--cream-dim)]">use instead</span>
+          <input
+            list="ingredient-names"
+            className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
+            placeholder="Substitute..."
+            value={subSubstituteName}
+            onChange={(e) => setSubSubstituteName(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Add rule
+          </button>
+        </form>
+      </fieldset>
 
       {subError && <p className="mb-4 text-xs text-[var(--berry)]">{subError}</p>}
 
@@ -88,6 +90,7 @@ export default function SubstitutionManager() {
                 <span className="font-medium">{sub.substituteName}</span>
               </span>
               <ConfirmButton
+                disabled={locked}
                 onConfirm={() => removeSubstitution(sub.id)}
                 label="Remove"
                 className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"

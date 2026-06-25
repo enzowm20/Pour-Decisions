@@ -75,7 +75,7 @@ function groupSpirits(spirits: Ingredient[]): { label: string; items: Ingredient
 }
 
 export default function StockPage() {
-  const { ingredients, addIngredient, updateIngredient, removeIngredient } = useData()
+  const { ingredients, addIngredient, updateIngredient, removeIngredient, locked } = useData()
 
   // Arriving from a flagged venue-scan ingredient's "Purchase" button —
   // prefill the add form with that name so the user just fills in the rest.
@@ -157,8 +157,9 @@ export default function StockPage() {
           <div className="flex flex-shrink-0 flex-nowrap items-center gap-3 whitespace-nowrap">
             <button
               type="button"
+              disabled={locked}
               onClick={() => setEditingStylesId(isEditingStyles ? null : ing.id)}
-              className="text-xs text-[var(--teal)] hover:underline"
+              className="text-xs text-[var(--teal)] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isEditingStyles ? "Done" : "Edit style"}
             </button>
@@ -168,8 +169,9 @@ export default function StockPage() {
                 type="number"
                 step="0.01"
                 min="0"
+                disabled={locked}
                 title="Cost per serving (30ml) — what you paid for it"
-                className="h-7 w-16 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)]"
+                className="h-7 w-16 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-1.5 text-xs text-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="0.00"
                 defaultValue={ing.costPerServing ?? ""}
                 onBlur={(e) => {
@@ -182,8 +184,9 @@ export default function StockPage() {
             </div>
             <button
               type="button"
+              disabled={locked}
               onClick={() => updateIngredient(ing.id, { inStock: !ing.inStock })}
-              className={`rounded-full px-3 py-1 text-xs ${
+              className={`rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${
                 ing.inStock
                   ? "bg-[var(--sage)] text-[var(--on-sage)]"
                   : "bg-[var(--bg)] text-[var(--cream-dim)]"
@@ -192,6 +195,7 @@ export default function StockPage() {
               {ing.inStock ? "In stock" : "Out of stock"}
             </button>
             <ConfirmButton
+              disabled={locked}
               onConfirm={() => removeIngredient(ing.id)}
               label="Remove"
               className="text-xs text-[var(--cream-dim)] hover:text-[var(--berry)]"
@@ -205,8 +209,9 @@ export default function StockPage() {
               <button
                 key={style}
                 type="button"
+                disabled={locked}
                 onClick={() => toggleIngredientStyle(ing.id, ingStyles, style)}
-                className={`rounded-full border px-3 py-1 text-xs tag-glow ${
+                className={`rounded-full border px-3 py-1 text-xs tag-glow disabled:cursor-not-allowed disabled:opacity-50 ${
                   ingStyles.includes(style)
                     ? "tag-glow-on border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
                     : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
@@ -231,73 +236,79 @@ export default function StockPage() {
           assumes a standard 30ml pour.
         </p>
 
-        <form onSubmit={handleAddIngredient} className="mb-4 flex flex-wrap items-end gap-2">
-          <input
-            className={`${inputClass} flex-1 min-w-[160px]`}
-            placeholder="Ingredient name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <select
-            className={`${inputClass} px-2`}
-            value={category}
-            onChange={(e) => setCategory(e.target.value as IngredientCategory)}
-          >
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {CATEGORY_LABELS[c]}
-              </option>
+        {/* fieldset disabled natively disables every nested input/select/
+            button in one go — much more reliable than remembering to
+            annotate each control individually, and the "contents" display
+            keeps it from affecting layout at all. */}
+        <fieldset disabled={locked} className="contents">
+          <form onSubmit={handleAddIngredient} className="mb-4 flex flex-wrap items-end gap-2">
+            <input
+              className={`${inputClass} flex-1 min-w-[160px] disabled:cursor-not-allowed disabled:opacity-50`}
+              placeholder="Ingredient name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <select
+              className={`${inputClass} px-2 disabled:cursor-not-allowed disabled:opacity-50`}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as IngredientCategory)}
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className={`${inputClass} w-32 disabled:cursor-not-allowed disabled:opacity-50`}
+              placeholder="Cost / serving (30ml)"
+              value={costPerServing}
+              onChange={(e) => setCostPerServing(e.target.value)}
+            />
+            <button type="submit" className={`${buttonClass} disabled:cursor-not-allowed disabled:opacity-50`}>
+              Add ingredient
+            </button>
+          </form>
+
+          <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Flavour Profile</p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {FLAVOR_TAGS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className={`rounded-full border px-3 py-1 text-xs tag-glow disabled:cursor-not-allowed disabled:opacity-50 ${
+                  tags.includes(tag)
+                    ? "tag-glow-on border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
+                    : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
+                }`}
+              >
+                {tag}
+              </button>
             ))}
-          </select>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            className={`${inputClass} w-32`}
-            placeholder="Cost / serving (30ml)"
-            value={costPerServing}
-            onChange={(e) => setCostPerServing(e.target.value)}
-          />
-          <button type="submit" className={buttonClass}>
-            Add ingredient
-          </button>
-        </form>
+          </div>
 
-        <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Flavour Profile</p>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {FLAVOR_TAGS.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => toggleTag(tag)}
-              className={`rounded-full border px-3 py-1 text-xs tag-glow ${
-                tags.includes(tag)
-                  ? "tag-glow-on border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
-                  : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-
-        <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Cocktail Style</p>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {STYLE_TAGS.map((style) => (
-            <button
-              key={style}
-              type="button"
-              onClick={() => toggleStyle(style)}
-              className={`rounded-full border px-3 py-1 text-xs tag-glow ${
-                styles.includes(style)
-                  ? "tag-glow-on border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
-                  : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
-              }`}
-            >
-              {STYLE_LABELS[style]}
-            </button>
-          ))}
-        </div>
+          <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Cocktail Style</p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {STYLE_TAGS.map((style) => (
+              <button
+                key={style}
+                type="button"
+                onClick={() => toggleStyle(style)}
+                className={`rounded-full border px-3 py-1 text-xs tag-glow disabled:cursor-not-allowed disabled:opacity-50 ${
+                  styles.includes(style)
+                    ? "tag-glow-on border-[var(--teal)] bg-[var(--teal)]/15 text-[var(--teal)]"
+                    : "border-[var(--cream-dim)]/25 text-[var(--cream-dim)]"
+                }`}
+              >
+                {STYLE_LABELS[style]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="mb-3 flex flex-wrap gap-2">
           {(["all", ...categories] as const).map((c) => (
