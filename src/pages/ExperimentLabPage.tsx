@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
-import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
+import { buildPairingGraph, buildProvenGroups } from "../lib/learnedPairings"
 import { checkRecipe } from "../lib/recipeCheck"
+import { buildCombos, comboViability, shuffled, signatureOf, type Combo } from "../lib/comboGenerator"
+import { inferOccasionTags } from "../lib/occasionThemes"
 import SubstitutionManager from "../components/SubstitutionManager"
 import FlaggedIngredients from "../components/FlaggedIngredients"
 import FlavorNeuralPicker from "../components/FlavorNeuralPicker"
@@ -10,41 +12,24 @@ import RevealOnScroll from "../components/RevealOnScroll"
 import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import ConfirmButton from "../components/ConfirmButton"
+import ComboCard from "../components/ComboCard"
 import bombayBottle from "../assets/bombay-bottle.webp"
-import { type FlavorTag, type Ingredient, type IngredientCategory } from "../types"
+import { FLAVOR_TAGS, type FlavorTag, type Ingredient } from "../types"
 
-const LABELS: Record<IngredientCategory, string> = {
-  spirit: "Spirits",
-  mixer: "Mixers",
-  citrus: "Citrus",
-  sweetener: "Sweeteners",
-  fruit: "Fruit",
-  other: "Top-up",
-}
+const THINKING_DELAY = () => 5000 + Math.random() * 5000
 
-// Render order for whichever categories happen to be present in a combo.
-const DISPLAY_ORDER: IngredientCategory[] = ["spirit", "mixer", "citrus", "sweetener", "fruit", "other"]
-
-interface Combo {
-  bySlot: Partial<Record<IngredientCategory, Ingredient[]>>
-  learnedIds: Set<string>
-}
-
-function hasOverlap(a: string[], b: string[]) {
-  return a.some((x) => b.includes(x))
-}
-
-function signatureOf(ids: string[]) {
-  return [...new Set(ids)].sort().join(",")
-}
-
-function shuffled<T>(arr: T[]): T[] {
-  const copy = [...arr]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[copy[i], copy[j]] = [copy[j], copy[i]]
-  }
-  return copy
+function ThinkingIndicator({ label }: { label: string }) {
+  return (
+    <p className="mb-3 flex items-center gap-2 text-sm text-[var(--gold)]">
+      <span className="thinking-pulse inline-block h-2 w-2 rounded-full bg-[var(--gold)]" />
+      {label}
+      <span className="thinking-dots">
+        <span>.</span>
+        <span>.</span>
+        <span>.</span>
+      </span>
+    </p>
+  )
 }
 
 export default function ExperimentLabPage() {
@@ -75,13 +60,12 @@ export default function ExperimentLabPage() {
     }
 
     setIsThinking(true)
-    const delay = 5000 + Math.random() * 5000
     thinkingTimeout.current = setTimeout(() => {
       setRevealedTags(selectedTags)
       setRegenKey((k) => k + 1)
       setIsThinking(false)
       setShowAllCombos(false)
-    }, delay)
+    }, THINKING_DELAY())
 
     return () => {
       if (thinkingTimeout.current) clearTimeout(thinkingTimeout.current)
@@ -91,6 +75,7 @@ export default function ExperimentLabPage() {
 
   const pairingGraph = useMemo(() => buildPairingGraph(experiments), [experiments])
   const provenGroups = useMemo(() => buildProvenGroups(experiments), [experiments])
+  const haveArchiveData = pairingGraph.size > 0
 
   // Every combination that already exists — as a logged experiment or on any
   // venue's menu (yours or one you've scanned) — so suggestions stay genuinely
@@ -119,141 +104,20 @@ export default function ExperimentLabPage() {
     )
   }
 
-  const combos = useMemo<Combo[]>(() => {
-    if (revealedTags.length === 0) return []
-
-    const flavorMatch = (i: Ingredient) => i.inStock && i.tags.some((t) => revealedTags.includes(t))
-
-    // Shuffled rather than alphabetical — picking the exact same tags again
-    // used to walk the anchor/partner lists in the same name order every
-    // time, so it always built the same 30 combos. Randomizing the order
-    // (while every other rule — proven pairings, usage caps, signatures —
-    // stays exactly as strict) means a regenerate actually explores a
-    // different slice of the eligible pool instead of repeating itself.
-    const spiritCandidates = shuffled(
-      ingredients.filter((i) => i.category === "spirit" && flavorMatch(i)),
-    )
-    if (spiritCandidates.length === 0) return []
-
-    // Every in-stock, flavor-matching non-spirit, grouped by category.
-    const otherCategories = ["mixer", "citrus", "sweetener", "fruit", "other"] as const
-    const otherPool = shuffled(
-      ingredients.filter((i) => i.category !== "spirit" && flavorMatch(i)),
-    )
-
-    // Do we have any archive data to lean on at all? If so, combos MUST be
-    // built from proven pairings — that's what stops random suggestions. With
-    // no archive yet, fall back to style compatibility so the page still
-    // does something, but stays just as tight.
-    const haveArchiveData = pairingGraph.size > 0
-    const learnedWith = (anchor: Ingredient, c: Ingredient) => isLearnedPair(pairingGraph, anchor.id, c.id)
-    const styleWith = (anchor: Ingredient, c: Ingredient) =>
-      hasOverlap(anchor.styles ?? [], c.styles ?? [])
-    // A candidate qualifies only if it's actually been proven alongside the
-    // anchor in the archive (preferred), or — only when there's no archive
-    // data at all — if it at least shares a cocktail style.
-    const qualifies = (anchor: Ingredient, c: Ingredient) =>
-      learnedWith(anchor, c) || (!haveArchiveData && styleWith(anchor, c))
-
-    // Not a hard ceiling — these are sensible "how much of each is worth
-    // suggesting" amounts. A build can use a few of some categories but
-    // shouldn't pile on (one top-up is plenty; a couple of fruits/sweeteners
-    // at most). What keeps combos sane is that every extra still has to be a
-    // proven partner of the anchor, not just filling slots.
-    const SOFT_CAP: Record<string, number> = {
-      spirit: 4,
-      mixer: 3,
-      citrus: 1,
-      sweetener: 2,
-      fruit: 2,
-      other: 2,
-    }
-    const MAX_COMBOS = 30
-    // No single ingredient gets to anchor/pad out more than 2 of these
-    // suggestions — once it's hit that, it's excluded from further combos so
-    // later rounds are forced to reach for different spirits/partners
-    // instead of recombining the same handful over and over.
-    const MAX_USES_PER_INGREDIENT = 2
-    const usageCount = new Map<string, number>()
-    const underCap = (ing: Ingredient) => (usageCount.get(ing.id) ?? 0) < MAX_USES_PER_INGREDIENT
-
-    const seenSignatures = new Set<string>()
-    const result: Combo[] = []
-
-    // Multiple passes over the anchor list rather than one combo per anchor
-    // — each round, whichever spirits/partners haven't hit their usage cap
-    // yet are still in play, so a productive round naturally builds a
-    // DIFFERENT combo per anchor than the round before it. Stops once
-    // either 30 combos exist or a full round produces nothing new (every
-    // anchor exhausted or capped out).
-    let producedInLastRound = true
-    while (result.length < MAX_COMBOS && producedInLastRound) {
-      producedInLastRound = false
-
-      for (const anchor of spiritCandidates) {
-        if (result.length >= MAX_COMBOS) break
-        if (!underCap(anchor)) continue
-
-        // Candidates that pair with the anchor, learned ones first so the
-        // build is anchored in what's actually worked before. Anything
-        // already at its usage cap is left out, forcing a different
-        // partner into this slot.
-        const partners = otherPool
-          .filter((c) => qualifies(anchor, c) && underCap(c))
-          .sort((a, b) => Number(learnedWith(anchor, b)) - Number(learnedWith(anchor, a)))
-
-        // Extra spirits that have been proven with the anchor — kept
-        // deliberate rather than scattershot.
-        const extraSpirits = spiritCandidates.filter(
-          (s) => s.id !== anchor.id && learnedWith(anchor, s) && underCap(s),
-        )
-
-        const bySlot: Combo["bySlot"] = {
-          spirit: [anchor, ...extraSpirits.slice(0, SOFT_CAP.spirit - 1)],
-        }
-        const perCategory = new Map<string, number>()
-
-        for (const c of partners) {
-          const cat = c.category as (typeof otherCategories)[number]
-          const used = perCategory.get(cat) ?? 0
-          if (used >= (SOFT_CAP[cat] ?? 1)) continue // category's had enough
-          perCategory.set(cat, used + 1)
-          bySlot[cat] = [...(bySlot[cat] ?? []), c]
-        }
-
-        const total = Object.values(bySlot).flat().length
-        // A lone spirit isn't a suggestion worth showing.
-        if (total < 2) continue
-
-        const allIds = Object.values(bySlot).flat().map((i) => i.id)
-        const signature = signatureOf(allIds)
-        if (seenSignatures.has(signature)) continue
-        seenSignatures.add(signature)
-
-        // Skip anything that already exists as an experiment or menu item —
-        // these are meant to be new.
-        if (knownSignatures.has(signature)) continue
-
-        for (const id of allIds) usageCount.set(id, (usageCount.get(id) ?? 0) + 1)
-
-        const learnedIds = provenMembersWithin(provenGroups, new Set(allIds))
-        result.push({ bySlot, learnedIds })
-        producedInLastRound = true
-      }
-    }
-
-    return result
+  const combos = useMemo<Combo[]>(
+    () => buildCombos(revealedTags, ingredients, pairingGraph, provenGroups, knownSignatures, 30),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ingredients, revealedTags, pairingGraph, provenGroups, knownSignatures, regenKey])
+    [ingredients, revealedTags, pairingGraph, provenGroups, knownSignatures, regenKey],
+  )
 
-  function tryCombo(combo: Combo) {
+  function tryCombo(combo: Combo, tags: string[]) {
     const ingredientIds = Object.values(combo.bySlot)
       .flat()
       .filter((i): i is Ingredient => Boolean(i))
       .map((i) => i.id)
     const params = new URLSearchParams({
       ingredients: ingredientIds.join(","),
-      tags: revealedTags.join(","),
+      tags: tags.join(","),
     })
     navigate(`/archive?${params.toString()}`)
   }
@@ -265,6 +129,81 @@ export default function ExperimentLabPage() {
     })
     navigate(`/archive?${params.toString()}`)
   }
+
+  // --- "Plan For An Occasion" — same combo generator, tags inferred from a
+  // typed-in theme via keyword lookup rather than picked by hand. ---
+  const [occasionQuery, setOccasionQuery] = useState("")
+  const [occasionThinking, setOccasionThinking] = useState(false)
+  const occasionTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [occasionResult, setOccasionResult] = useState<{
+    label: string | null
+    tags: FlavorTag[]
+    reason: string
+    combos: Combo[]
+  } | null>(null)
+  const [occasionShowAll, setOccasionShowAll] = useState(false)
+
+  function handleOccasionSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!occasionQuery.trim() || occasionThinking) return
+    if (occasionTimeout.current) clearTimeout(occasionTimeout.current)
+    setOccasionThinking(true)
+    setOccasionResult(null)
+    occasionTimeout.current = setTimeout(() => {
+      const { label, tags, reason } = inferOccasionTags(occasionQuery)
+      const occasionCombos = buildCombos(tags, ingredients, pairingGraph, provenGroups, knownSignatures, 15)
+      setOccasionResult({ label, tags, reason, combos: occasionCombos })
+      setOccasionThinking(false)
+      setOccasionShowAll(false)
+    }, THINKING_DELAY())
+  }
+
+  useEffect(() => {
+    return () => {
+      if (occasionTimeout.current) clearTimeout(occasionTimeout.current)
+    }
+  }, [])
+
+  // --- Random Cocktail button — a fresh random tag set every press, with a
+  // rough "how confident is this" percentage attached. ---
+  const [randomThinking, setRandomThinking] = useState(false)
+  const randomTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [randomResult, setRandomResult] = useState<{ tags: FlavorTag[]; combo: Combo; viability: number } | null>(
+    null,
+  )
+  const [randomEmpty, setRandomEmpty] = useState(false)
+
+  function handleRandomCocktail() {
+    if (randomThinking) return
+    if (randomTimeout.current) clearTimeout(randomTimeout.current)
+    setRandomThinking(true)
+    setRandomResult(null)
+    setRandomEmpty(false)
+    randomTimeout.current = setTimeout(() => {
+      // A few attempts with different random tag sets, since a single
+      // unlucky combination (tags nothing in stock happens to carry) would
+      // otherwise come up empty more often than it should.
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const tagCount = 2 + Math.floor(Math.random() * 3) // 2–4 tags
+        const tags = shuffled([...FLAVOR_TAGS]).slice(0, tagCount)
+        const found = buildCombos(tags, ingredients, pairingGraph, provenGroups, knownSignatures, 5)
+        if (found.length > 0) {
+          const combo = found[0]
+          setRandomResult({ tags, combo, viability: comboViability(combo, haveArchiveData) })
+          setRandomThinking(false)
+          return
+        }
+      }
+      setRandomEmpty(true)
+      setRandomThinking(false)
+    }, THINKING_DELAY())
+  }
+
+  useEffect(() => {
+    return () => {
+      if (randomTimeout.current) clearTimeout(randomTimeout.current)
+    }
+  }, [])
 
   return (
     <div className="relative">
@@ -288,67 +227,13 @@ export default function ExperimentLabPage() {
         <p className="text-sm text-[var(--cream-dim)]">Select at least one tag to see suggestions.</p>
       )}
 
-      {isThinking && (
-        <p className="mb-3 flex items-center gap-2 text-sm text-[var(--gold)]">
-          <span className="thinking-pulse inline-block h-2 w-2 rounded-full bg-[var(--gold)]" />
-          Thinking through combinations
-          <span className="thinking-dots">
-            <span>.</span>
-            <span>.</span>
-            <span>.</span>
-          </span>
-        </p>
-      )}
+      {isThinking && <ThinkingIndicator label="Thinking through combinations" />}
 
       <div className="space-y-3">
-        {!isThinking && combos.slice(0, showAllCombos ? undefined : 1).map((combo, i) => {
-          const presentCategories = DISPLAY_ORDER.filter((c) => (combo.bySlot[c] ?? []).length > 0)
-          return (
-            <RevealOnScroll
-              key={i}
-              className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4"
-            >
-              <div className="mb-3 flex flex-wrap gap-4">
-                {presentCategories.map((category) => (
-                  <div key={category}>
-                    <p className="text-[11px] text-[var(--cream-dim)]">{LABELS[category]}</p>
-                    <ul className="text-sm">
-                      {(combo.bySlot[category] ?? []).map((ing) => (
-                        <li key={ing.id}>
-                          {ing.name}
-                          {combo.learnedIds.has(ing.id) && (
-                            <span className="ml-1.5 rounded-full bg-[var(--sage)]/20 px-1.5 py-0.5 text-[10px] text-[var(--sage)]">
-                              proven
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1.5">
-                  {revealedTags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-[var(--gold)]/15 px-2 py-0.5 text-[11px] text-[var(--gold)]"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => tryCombo(combo)}
-                  className="h-8 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90"
-                >
-                  Try this
-                </button>
-              </div>
-            </RevealOnScroll>
-          )
-        })}
+        {!isThinking &&
+          combos.slice(0, showAllCombos ? undefined : 1).map((combo, i) => (
+            <ComboCard key={i} combo={combo} tags={revealedTags} onTry={() => tryCombo(combo, revealedTags)} />
+          ))}
         {!isThinking && revealedTags.length > 0 && combos.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">
             No new combinations available yet — either nothing in stock is tagged with these
@@ -366,7 +251,107 @@ export default function ExperimentLabPage() {
         )}
       </div>
 
-      <RevealOnScroll className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+      <RevealOnScroll delay={150} className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+        <h2 className="mb-1 text-base font-medium">Plan For An Occasion</h2>
+        <p className="mb-3 text-sm text-[var(--cream-dim)]">
+          Describe a holiday or event — Christmas, Easter, Valentine's Day, a World Cup watch
+          party, a piano bar night, whatever — and this infers the flavour profile that fits and
+          builds up to 15 suggestions from it, the same way the picker above does.
+        </p>
+        <form onSubmit={handleOccasionSubmit} className="mb-3 flex flex-wrap gap-2">
+          <input
+            className="h-9 flex-1 min-w-[200px] rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
+            placeholder="e.g. Christmas, Valentine's Day, a footy grand final..."
+            value={occasionQuery}
+            onChange={(e) => setOccasionQuery(e.target.value)}
+            disabled={occasionThinking}
+          />
+          <button
+            type="submit"
+            disabled={!occasionQuery.trim() || occasionThinking}
+            className="h-9 rounded-md bg-[var(--gold)] px-3 text-sm font-medium text-[var(--on-gold)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Suggest cocktails
+          </button>
+        </form>
+
+        {occasionThinking && <ThinkingIndicator label="Working out what fits the occasion" />}
+
+        {!occasionThinking && occasionResult && (
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--cream-dim)]">
+              {occasionResult.label ?? "That occasion"} calls for {occasionResult.reason} — leaning
+              on{" "}
+              {occasionResult.tags.map((t, i) => (
+                <span key={t}>
+                  {i > 0 ? ", " : ""}
+                  <span className="text-[var(--gold)]">{t}</span>
+                </span>
+              ))}{" "}
+              flavours.
+            </p>
+            {occasionResult.combos.slice(0, occasionShowAll ? undefined : 1).map((combo, i) => (
+              <ComboCard
+                key={i}
+                combo={combo}
+                tags={occasionResult.tags}
+                onTry={() => tryCombo(combo, occasionResult.tags)}
+              />
+            ))}
+            {occasionResult.combos.length === 0 && (
+              <p className="text-sm text-[var(--cream-dim)]">
+                Nothing in stock currently matches that occasion's profile, or every match already
+                exists in your archive or a menu.
+              </p>
+            )}
+            {!occasionShowAll && occasionResult.combos.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setOccasionShowAll(true)}
+                className="text-xs text-[var(--teal)] hover:underline"
+              >
+                More ({occasionResult.combos.length - 1})
+              </button>
+            )}
+          </div>
+        )}
+      </RevealOnScroll>
+
+      <RevealOnScroll delay={200} className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
+        <h2 className="mb-1 text-base font-medium">Feeling Lucky?</h2>
+        <p className="mb-3 text-sm text-[var(--cream-dim)]">
+          Skip the tag picker entirely — this rolls a fresh random flavour combination every time
+          you press it, with a rough confidence score for how proven the result is.
+        </p>
+        <button
+          type="button"
+          onClick={handleRandomCocktail}
+          disabled={randomThinking}
+          className="mb-3 h-9 rounded-md bg-[var(--teal)] px-4 text-sm font-medium text-[var(--on-teal)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          🎲 Random Cocktail
+        </button>
+
+        {randomThinking && <ThinkingIndicator label="Rolling the dice" />}
+
+        {!randomThinking && randomEmpty && (
+          <p className="text-sm text-[var(--cream-dim)]">
+            Couldn't land on a match after a few tries — your stock might be a bit thin right now.
+            Give it another press.
+          </p>
+        )}
+
+        {!randomThinking && randomResult && (
+          <ComboCard
+            combo={randomResult.combo}
+            tags={randomResult.tags}
+            badge={`${randomResult.viability}% match`}
+            onTry={() => tryCombo(randomResult.combo, randomResult.tags)}
+          />
+        )}
+      </RevealOnScroll>
+
+      <RevealOnScroll delay={250} className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
         <SubstitutionManager />
 
         {queuedResults.length > 0 && (
