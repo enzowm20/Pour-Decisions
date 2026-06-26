@@ -21,7 +21,7 @@ export const FLAVOR_TAGS = [
   "herbal",
   "nutty",
   "refreshing",
-  "savory",
+  "savoury",
   "smoky",
   "sour",
   "spicy",

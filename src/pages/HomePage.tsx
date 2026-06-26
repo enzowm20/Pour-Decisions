@@ -12,7 +12,7 @@ const SECTIONS = [
       {
         to: "/stock",
         name: "Stock",
-        blurb: "Every spirit, mixer, citrus, sweetener, and top-up you carry, tagged by flavor and cocktail style.",
+        blurb: "Every spirit, mixer, citrus, sweetener, and top-up you carry, tagged by flavour and cocktail style.",
       },
       {
         to: "/venues",
@@ -28,7 +28,7 @@ const SECTIONS = [
       {
         to: "/lab",
         name: "Experiment Lab",
-        blurb: "Pick flavor tags and get new combinations built from what's actually in stock — never something already on file.",
+        blurb: "Pick flavour tags and get new combinations built from what's actually in stock — never something already on file.",
       },
       {
         to: "/archive",

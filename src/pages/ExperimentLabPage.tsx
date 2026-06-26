@@ -249,9 +249,9 @@ export default function ExperimentLabPage() {
     <div className="relative">
       <FallingBottles bottleImg={bombayBottle} />
       <RevealOnScroll>
-        <h1 className="mb-1 text-lg font-medium">Build A Flavor Profile</h1>
+        <h1 className="mb-1 text-lg font-medium">Build A Flavour Profile</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">
-          Select flavor tags to get tight, deliberate combinations from your stocked ingredients.
+          Select flavour tags to get tight, deliberate combinations from your stocked ingredients.
           Suggestions are built around pairings you've actually logged as "worked" in the archive —
           so the more you log, the sharper these get — and are kept small (a spirit plus a few
           partners), never a scattershot pile of ingredients. Anything that already matches an
@@ -331,7 +331,7 @@ export default function ExperimentLabPage() {
         {!isThinking && revealedTags.length > 0 && combos.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">
             No new combinations available yet — either nothing in stock is tagged with these
-            flavors, or every match already exists in your archive or a menu.
+            flavours, or every match already exists in your archive or a menu.
           </p>
         )}
         {!isThinking && !showAllCombos && combos.length > 1 && (

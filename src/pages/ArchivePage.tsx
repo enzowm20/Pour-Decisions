@@ -140,7 +140,7 @@ export default function ArchivePage() {
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Flavor Tags</p>
+          <p className="mb-1.5 text-xs text-[var(--cream-dim)]">Flavour Tags</p>
           <div className="flex flex-wrap gap-2">
             {FLAVOR_TAGS.map((tag) => (
               <button
