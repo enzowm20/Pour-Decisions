@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useData } from "../context/DataContext"
-import { byName } from "../lib/sort"
 import { buildPairingGraph, buildProvenGroups, isLearnedPair, provenMembersWithin } from "../lib/learnedPairings"
 import { checkRecipe } from "../lib/recipeCheck"
 import SubstitutionManager from "../components/SubstitutionManager"
@@ -39,6 +38,15 @@ function signatureOf(ids: string[]) {
   return [...new Set(ids)].sort().join(",")
 }
 
+function shuffled<T>(arr: T[]): T[] {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
 export default function ExperimentLabPage() {
   const { ingredients, experiments, recipes, substitutions, labQueue, removeFromLabQueue, locked } = useData()
   const navigate = useNavigate()
@@ -48,6 +56,11 @@ export default function ExperimentLabPage() {
   const thinkingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showAllQueued, setShowAllQueued] = useState(false)
   const [showAllCombos, setShowAllCombos] = useState(false)
+  // Bumped every time suggestions are (re)generated, even if the tag
+  // selection ends up identical to last time — without this, picking the
+  // exact same tags again always produced the exact same 30 combos in the
+  // exact same order, since nothing else in the calculation ever changed.
+  const [regenKey, setRegenKey] = useState(0)
 
   // Gimmick: don't reveal suggestions the instant a tag is picked — let the
   // neural picker "think" for a random 5-10s stretch first, like it's
@@ -65,6 +78,7 @@ export default function ExperimentLabPage() {
     const delay = 5000 + Math.random() * 5000
     thinkingTimeout.current = setTimeout(() => {
       setRevealedTags(selectedTags)
+      setRegenKey((k) => k + 1)
       setIsThinking(false)
       setShowAllCombos(false)
     }, delay)
@@ -110,14 +124,20 @@ export default function ExperimentLabPage() {
 
     const flavorMatch = (i: Ingredient) => i.inStock && i.tags.some((t) => revealedTags.includes(t))
 
-    const spiritCandidates = byName(
+    // Shuffled rather than alphabetical — picking the exact same tags again
+    // used to walk the anchor/partner lists in the same name order every
+    // time, so it always built the same 30 combos. Randomizing the order
+    // (while every other rule — proven pairings, usage caps, signatures —
+    // stays exactly as strict) means a regenerate actually explores a
+    // different slice of the eligible pool instead of repeating itself.
+    const spiritCandidates = shuffled(
       ingredients.filter((i) => i.category === "spirit" && flavorMatch(i)),
     )
     if (spiritCandidates.length === 0) return []
 
     // Every in-stock, flavor-matching non-spirit, grouped by category.
     const otherCategories = ["mixer", "citrus", "sweetener", "fruit", "other"] as const
-    const otherPool = byName(
+    const otherPool = shuffled(
       ingredients.filter((i) => i.category !== "spirit" && flavorMatch(i)),
     )
 
@@ -223,7 +243,8 @@ export default function ExperimentLabPage() {
     }
 
     return result
-  }, [ingredients, revealedTags, pairingGraph, provenGroups, knownSignatures])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ingredients, revealedTags, pairingGraph, provenGroups, knownSignatures, regenKey])
 
   function tryCombo(combo: Combo) {
     const ingredientIds = Object.values(combo.bySlot)
