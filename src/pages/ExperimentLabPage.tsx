@@ -87,6 +87,23 @@ export default function ExperimentLabPage() {
     return sigs
   }, [experiments, recipes])
 
+  // Every combo signature already suggested ANYWHERE on this page this
+  // session — the tag picker, the occasion planner, and the random button
+  // all read from and add to this same set, so once a cocktail's been shown
+  // once it's excluded from every future suggestion (any of the three) until
+  // the pool genuinely runs dry, rather than just relying on shuffling to
+  // probably not repeat.
+  const seenSignaturesRef = useRef<Set<string>>(new Set())
+  function excludeSeen() {
+    return new Set([...knownSignatures, ...seenSignaturesRef.current])
+  }
+  function markSeen(shown: Combo[]) {
+    for (const combo of shown) {
+      const ids = Object.values(combo.bySlot).flat().map((i) => i.id)
+      seenSignaturesRef.current.add(signatureOf(ids))
+    }
+  }
+
   // Recipes sent over from a venue scan, waiting here under their own
   // heading rather than having jumped the user straight to this page.
   const queuedResults = labQueue.map((item) => ({
@@ -105,10 +122,17 @@ export default function ExperimentLabPage() {
   }
 
   const combos = useMemo<Combo[]>(
-    () => buildCombos(revealedTags, ingredients, pairingGraph, provenGroups, knownSignatures, 30),
+    () => buildCombos(revealedTags, ingredients, pairingGraph, provenGroups, excludeSeen(), 30),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ingredients, revealedTags, pairingGraph, provenGroups, knownSignatures, regenKey],
   )
+  // Recorded after render (not inside the memo) so the exclusion set used by
+  // the NEXT computation — here or in the occasion planner/random button —
+  // reflects everything shown so far, without making the memo itself impure.
+  useEffect(() => {
+    markSeen(combos)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combos])
 
   function tryCombo(combo: Combo, tags: string[]) {
     const ingredientIds = Object.values(combo.bySlot)
@@ -154,7 +178,8 @@ export default function ExperimentLabPage() {
     setOccasionResult(null)
     occasionTimeout.current = setTimeout(() => {
       const { label, tags, reason } = inferOccasionTags(occasionQuery)
-      const occasionCombos = buildCombos(tags, ingredients, pairingGraph, provenGroups, knownSignatures, 5)
+      const occasionCombos = buildCombos(tags, ingredients, pairingGraph, provenGroups, excludeSeen(), 5)
+      markSeen(occasionCombos)
       setOccasionResult({ label, tags, reason, combos: occasionCombos })
       setOccasionThinking(false)
       setOccasionVisibleCount(1)
@@ -200,9 +225,10 @@ export default function ExperimentLabPage() {
       for (let attempt = 0; attempt < 6; attempt++) {
         const tagCount = 2 + Math.floor(Math.random() * 3) // 2–4 tags
         const tags = shuffled([...FLAVOR_TAGS]).slice(0, tagCount)
-        const found = buildCombos(tags, ingredients, pairingGraph, provenGroups, knownSignatures, 5)
+        const found = buildCombos(tags, ingredients, pairingGraph, provenGroups, excludeSeen(), 5)
         if (found.length > 0) {
           const combo = found[0]
+          markSeen([combo])
           setRandomResult({ tags, combo, viability: comboViability(combo, haveArchiveData) })
           setRandomThinking(false)
           return
