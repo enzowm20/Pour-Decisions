@@ -141,7 +141,10 @@ export default function ExperimentLabPage() {
     reason: string
     combos: Combo[]
   } | null>(null)
-  const [occasionShowAll, setOccasionShowAll] = useState(false)
+  // How many of the (up to 5) occasion suggestions are currently shown —
+  // starts at 1, and "Show more" reveals exactly one additional at a time
+  // rather than dumping the rest in all at once.
+  const [occasionVisibleCount, setOccasionVisibleCount] = useState(1)
 
   function handleOccasionSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -151,11 +154,22 @@ export default function ExperimentLabPage() {
     setOccasionResult(null)
     occasionTimeout.current = setTimeout(() => {
       const { label, tags, reason } = inferOccasionTags(occasionQuery)
-      const occasionCombos = buildCombos(tags, ingredients, pairingGraph, provenGroups, knownSignatures, 15)
+      const occasionCombos = buildCombos(tags, ingredients, pairingGraph, provenGroups, knownSignatures, 5)
       setOccasionResult({ label, tags, reason, combos: occasionCombos })
       setOccasionThinking(false)
-      setOccasionShowAll(false)
+      setOccasionVisibleCount(1)
     }, THINKING_DELAY())
+  }
+
+  // One sentence per suggestion explaining why THAT specific build fits —
+  // led by its anchor spirit, framed against the occasion's overall reason.
+  function occasionComboDescription(combo: Combo, reason: string): string {
+    const spirit = combo.bySlot.spirit?.[0]
+    const proven = combo.learnedIds.size > 0
+    const lede = spirit ? `${spirit.name}-led` : "This build"
+    return proven
+      ? `${lede}, playing into ${reason} — and a pairing you've already proven works.`
+      : `${lede}, playing into ${reason}.`
   }
 
   useEffect(() => {
@@ -256,7 +270,7 @@ export default function ExperimentLabPage() {
         <p className="mb-3 text-sm text-[var(--cream-dim)]">
           Describe a holiday or event — Christmas, Easter, Valentine's Day, a World Cup watch
           party, a piano bar night, whatever — and this infers the flavour profile that fits and
-          builds up to 15 suggestions from it, the same way the picker above does.
+          builds up to 5 suggestions from it, the same way the picker above does.
         </p>
         <form onSubmit={handleOccasionSubmit} className="mb-3 flex flex-wrap gap-2">
           <input
@@ -290,11 +304,12 @@ export default function ExperimentLabPage() {
               ))}{" "}
               flavours.
             </p>
-            {occasionResult.combos.slice(0, occasionShowAll ? undefined : 1).map((combo, i) => (
+            {occasionResult.combos.slice(0, occasionVisibleCount).map((combo, i) => (
               <ComboCard
                 key={i}
                 combo={combo}
                 tags={occasionResult.tags}
+                description={occasionComboDescription(combo, occasionResult.reason)}
                 onTry={() => tryCombo(combo, occasionResult.tags)}
               />
             ))}
@@ -304,13 +319,13 @@ export default function ExperimentLabPage() {
                 exists in your archive or a menu.
               </p>
             )}
-            {!occasionShowAll && occasionResult.combos.length > 1 && (
+            {occasionVisibleCount < occasionResult.combos.length && (
               <button
                 type="button"
-                onClick={() => setOccasionShowAll(true)}
+                onClick={() => setOccasionVisibleCount((n) => n + 1)}
                 className="text-xs text-[var(--teal)] hover:underline"
               >
-                More ({occasionResult.combos.length - 1})
+                Show more ({occasionResult.combos.length - occasionVisibleCount} left)
               </button>
             )}
           </div>

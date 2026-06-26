@@ -20,13 +20,16 @@ interface Props {
   // Shown next to the tags instead of (or alongside) them — used by the
   // random-cocktail button to surface its rough match-confidence score.
   badge?: string
+  // A one-sentence blurb above the tags/button row — used by the occasion
+  // planner to say why each specific option fits the theme.
+  description?: string
 }
 
 // Shared by every place on the Experiment Lab page that shows a generated
 // combo — the flavour-profile picker, the occasion planner, and the random
 // button all render results identically, just with different tag chips/an
-// optional badge.
-export default function ComboCard({ combo, tags, onTry, badge }: Props) {
+// optional badge or description.
+export default function ComboCard({ combo, tags, onTry, badge, description }: Props) {
   const presentCategories = DISPLAY_ORDER.filter((c) => (combo.bySlot[c] ?? []).length > 0)
   return (
     <RevealOnScroll className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4">
@@ -49,6 +52,9 @@ export default function ComboCard({ combo, tags, onTry, badge }: Props) {
           </div>
         ))}
       </div>
+      {description && (
+        <p className="mb-3 text-xs italic text-[var(--cream-dim)]">{description}</p>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1.5">
           {badge && (
