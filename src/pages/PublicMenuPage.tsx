@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useData } from "../context/DataContext"
 import { byName } from "../lib/sort"
+import { checkRecipe } from "../lib/recipeCheck"
 import DrainingBackground from "../components/DrainingBackground"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
@@ -19,7 +20,7 @@ const TABS: { value: MenuCategory; label: string }[] = [
 // Reads the same local data as the staff pages, so it only shows your menu
 // when opened on this same device/browser (there's no shared backend).
 export default function PublicMenuPage() {
-  const { recipes, ingredients, experiments } = useData()
+  const { recipes, ingredients, substitutions, experiments } = useData()
   const [tab, setTab] = useState<MenuCategory>("core")
   const [orderedId, setOrderedId] = useState<string | null>(null)
 
@@ -86,6 +87,7 @@ export default function PublicMenuPage() {
             )}
             {menuRecipes.map((recipe, i) => {
               const photo = recipe.photo ?? photoByName.get(recipe.name.toLowerCase())
+              const outOfStock = checkRecipe(recipe, ingredients, substitutions).status === "purchase"
               return (
                 <RevealOnScroll
                   key={recipe.id}
@@ -107,17 +109,27 @@ export default function PublicMenuPage() {
                     {recipe.sellPrice !== undefined && (
                       <p className="mt-1 text-sm font-medium">${recipe.sellPrice.toFixed(2)}</p>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => handleOrder(recipe.id)}
-                      className={`mt-auto self-start rounded-md px-4 py-1.5 text-sm font-medium ${
-                        orderedId === recipe.id
-                          ? "bg-[var(--berry)] text-[var(--on-berry)]"
-                          : "bg-[var(--teal)] text-[var(--on-teal)] hover:opacity-90"
-                      }`}
-                    >
-                      {orderedId === recipe.id ? "Ordered ✓" : "Order Cocktail"}
-                    </button>
+                    {outOfStock ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-auto self-start rounded-md bg-[#4a3220] px-4 py-1.5 text-sm font-medium text-[var(--cream)] cursor-not-allowed"
+                      >
+                        Out of Stock
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOrder(recipe.id)}
+                        className={`mt-auto self-start rounded-md px-4 py-1.5 text-sm font-medium ${
+                          orderedId === recipe.id
+                            ? "bg-[var(--berry)] text-[var(--on-berry)]"
+                            : "bg-[var(--teal)] text-[var(--on-teal)] hover:opacity-90"
+                        }`}
+                      >
+                        {orderedId === recipe.id ? "Ordered ✓" : "Order Cocktail"}
+                      </button>
+                    )}
                   </div>
                   {/* Portrait (3:4) photo on the right. */}
                   {photo && (
