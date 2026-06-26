@@ -10,6 +10,7 @@ export default function StaffGate() {
   const [authed, setAuthed] = useState(isStaffAuthed())
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [showHint, setShowHint] = useState(false)
 
   if (authed) return <Outlet />
 
@@ -49,9 +50,20 @@ export default function StaffGate() {
         <form onSubmit={handleLogin} className="w-full max-w-sm space-y-3 text-left">
           <p className="text-base font-medium text-[var(--cream)]">Staff sign-in</p>
           <p className="text-sm text-[var(--cream-dim)]">This area is for you and your staff only.</p>
-          <p className="text-xs text-[var(--cream-dim)]/70">
-            Hint: the name of this app, all lowercase and one word, with some enthusiasm at the end.
-          </p>
+
+          {showHint ? (
+            <p className="text-xs text-[var(--cream-dim)]/70">
+              Hint: the name of this app, all lowercase and one word, with some enthusiasm at the end.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowHint(true)}
+              className="text-xs text-[var(--teal)] hover:underline"
+            >
+              Need a hint?
+            </button>
+          )}
 
           <input
             type="password"
