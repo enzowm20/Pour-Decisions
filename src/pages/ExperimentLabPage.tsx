@@ -4,7 +4,7 @@ import { useData } from "../context/DataContext"
 import { buildPairingGraph, buildProvenGroups } from "../lib/learnedPairings"
 import { checkRecipe } from "../lib/recipeCheck"
 import { buildCombos, comboViability, shuffled, signatureOf, type Combo } from "../lib/comboGenerator"
-import { inferOccasionTags } from "../lib/occasionThemes"
+import { inferOccasionTags, ALL_OCCASION_LABELS } from "../lib/occasionThemes"
 import SubstitutionManager from "../components/SubstitutionManager"
 import FlaggedIngredients from "../components/FlaggedIngredients"
 import FlavorNeuralPicker from "../components/FlavorNeuralPicker"
@@ -156,6 +156,11 @@ export default function ExperimentLabPage() {
 
   // --- "Plan For An Occasion" — same combo generator, tags inferred from a
   // typed-in theme via keyword lookup rather than picked by hand. ---
+  const [occasionPlaceholderIdx, setOccasionPlaceholderIdx] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setOccasionPlaceholderIdx((i) => (i + 1) % ALL_OCCASION_LABELS.length), 2000)
+    return () => clearInterval(id)
+  }, [])
   const [occasionQuery, setOccasionQuery] = useState("")
   const [occasionThinking, setOccasionThinking] = useState(false)
   const occasionTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -335,7 +340,7 @@ export default function ExperimentLabPage() {
         <form onSubmit={handleOccasionSubmit} className="mb-3 flex flex-wrap gap-2">
           <input
             className="h-9 flex-1 min-w-[200px] rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
-            placeholder="e.g. Christmas, Valentine's Day, a footy grand final..."
+            placeholder={`e.g. ${ALL_OCCASION_LABELS[occasionPlaceholderIdx]}…`}
             value={occasionQuery}
             onChange={(e) => setOccasionQuery(e.target.value)}
             disabled={occasionThinking}
