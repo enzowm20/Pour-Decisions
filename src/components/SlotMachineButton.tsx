@@ -112,13 +112,14 @@ const SQUARE_W   = ITEM_W + 16         // outer width when square (168 px)
 const EXPAND_MS  = 480                  // width transition duration
 const SPIN_MS    = 2800                 // reel animation duration
 
-// 6 copies of the list — strip wide enough for repeated spins after normalisation
+// 12 copies — strip = 43 776 px; NORM_X leaves 25 536 px to the right,
+// safely more than the max single-spin distance (~18 000 px)
 const REEL_ITEMS = [
-  ...COCKTAILS, ...COCKTAILS, ...COCKTAILS,
-  ...COCKTAILS, ...COCKTAILS, ...COCKTAILS,
+  ...COCKTAILS, ...COCKTAILS, ...COCKTAILS, ...COCKTAILS,
+  ...COCKTAILS, ...COCKTAILS, ...COCKTAILS, ...COCKTAILS,
+  ...COCKTAILS, ...COCKTAILS, ...COCKTAILS, ...COCKTAILS,
 ]
-// Normalised start: position at copy 3 item 0 (copies 0-2 above, 3-5 below)
-const NORM_X = -(3 * SET_W)
+const NORM_X = -(5 * SET_W)
 
 type Phase = "square" | "retracting" | "expanding" | "spinning" | "landed"
 
