@@ -17,8 +17,6 @@ const DICE_FACES: [number, number][][] = [
 ]
 
 export default function LuckyMartiniButton({ onClick, disabled, spinning }: Props) {
-  const animRef = useRef<SVGAnimateTransformElement | null>(null)
-  const liquidRef = useRef<SVGPathElement | null>(null)
   const dice1AngleRef = useRef(0)
   const dice2AngleRef = useRef(Math.PI)
   const liquidPhaseRef = useRef(0)
