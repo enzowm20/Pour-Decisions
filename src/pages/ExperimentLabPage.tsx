@@ -13,6 +13,7 @@ import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import ConfirmButton from "../components/ConfirmButton"
 import ComboCard from "../components/ComboCard"
+import LuckyMartiniButton from "../components/LuckyMartiniButton"
 import bombayBottle from "../assets/bombay-bottle.webp"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient } from "../types"
 
@@ -428,16 +429,13 @@ export default function ExperimentLabPage() {
           Skip the tag picker entirely — this rolls a fresh random flavour combination every time
           you press it, with a rough confidence score for how proven the result is.
         </p>
-        <button
-          type="button"
-          onClick={handleRandomCocktail}
-          disabled={randomThinking}
-          className="mb-3 h-9 rounded-md bg-[var(--teal)] px-4 text-sm font-medium text-[var(--on-teal)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          🎲 Random Cocktail
-        </button>
-
-        {randomThinking && <ThinkingIndicator label="Rolling the dice" />}
+        <div className="mb-4">
+          <LuckyMartiniButton
+            onClick={handleRandomCocktail}
+            disabled={randomThinking}
+            spinning={randomThinking}
+          />
+        </div>
 
         {!randomThinking && randomEmpty && (
           <p className="text-sm text-[var(--cream-dim)]">
