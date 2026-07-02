@@ -157,8 +157,16 @@ export default function ExperimentLabPage() {
   // --- "Plan For An Occasion" — same combo generator, tags inferred from a
   // typed-in theme via keyword lookup rather than picked by hand. ---
   const [occasionPlaceholderIdx, setOccasionPlaceholderIdx] = useState(0)
+  const [occasionPlaceholderVisible, setOccasionPlaceholderVisible] = useState(true)
+  const [occasionInputFocused, setOccasionInputFocused] = useState(false)
   useEffect(() => {
-    const id = setInterval(() => setOccasionPlaceholderIdx((i) => (i + 1) % ALL_OCCASION_LABELS.length), 2000)
+    const id = setInterval(() => {
+      setOccasionPlaceholderVisible(false)
+      setTimeout(() => {
+        setOccasionPlaceholderIdx((i) => (i + 1) % ALL_OCCASION_LABELS.length)
+        setOccasionPlaceholderVisible(true)
+      }, 400)
+    }, 2400)
     return () => clearInterval(id)
   }, [])
   const [occasionQuery, setOccasionQuery] = useState("")
@@ -338,13 +346,30 @@ export default function ExperimentLabPage() {
           builds up to 5 suggestions from it, the same way the picker above does.
         </p>
         <form onSubmit={handleOccasionSubmit} className="mb-3 flex flex-wrap gap-2">
-          <input
-            className="h-9 flex-1 min-w-[200px] rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
-            placeholder={`e.g. ${ALL_OCCASION_LABELS[occasionPlaceholderIdx]}…`}
-            value={occasionQuery}
-            onChange={(e) => setOccasionQuery(e.target.value)}
-            disabled={occasionThinking}
-          />
+          <div className="relative h-9 flex-1 min-w-[200px]">
+            {!occasionQuery && !occasionInputFocused && (
+              <span
+                className="pointer-events-none absolute inset-0 flex items-center px-3 text-sm select-none transition-all duration-300"
+                style={{
+                  color: "var(--cream-dim)",
+                  opacity: occasionPlaceholderVisible ? 0.55 : 0,
+                  filter: occasionPlaceholderVisible
+                    ? "brightness(1)"
+                    : "brightness(2) saturate(0)",
+                }}
+              >
+                e.g. {ALL_OCCASION_LABELS[occasionPlaceholderIdx]}…
+              </span>
+            )}
+            <input
+              className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)]"
+              value={occasionQuery}
+              onChange={(e) => setOccasionQuery(e.target.value)}
+              onFocus={() => setOccasionInputFocused(true)}
+              onBlur={() => setOccasionInputFocused(false)}
+              disabled={occasionThinking}
+            />
+          </div>
           <button
             type="submit"
             disabled={!occasionQuery.trim() || occasionThinking}
