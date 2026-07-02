@@ -1,191 +1,258 @@
 import { useEffect, useRef } from "react"
 
-// ── 3-D math ─────────────────────────────────────────────────────────────────
-type V3 = [number, number, number]
-const rxv = ([x,y,z]: V3, a: number): V3 => { const c=Math.cos(a),s=Math.sin(a); return [x,y*c-z*s,y*s+z*c] }
-const ryv = ([x,y,z]: V3, a: number): V3 => { const c=Math.cos(a),s=Math.sin(a); return [x*c+z*s,y,-x*s+z*c] }
-const rzv = ([x,y,z]: V3, a: number): V3 => { const c=Math.cos(a),s=Math.sin(a); return [x*c-y*s,x*s+y*c,z] }
-const rot3 = (v: V3, ax: number, ay: number, az: number): V3 => rzv(ryv(rxv(v,ax),ay),az)
-const add3 = (a: V3, b: V3): V3 => [a[0]+b[0],a[1]+b[1],a[2]+b[2]]
-const mul3 = (v: V3, s: number): V3 => [v[0]*s,v[1]*s,v[2]*s]
-const dot3 = (a: V3, b: V3) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2]
-const pr3 = ([x,y,z]: V3, f: number, cx: number, cy: number): [number,number] => {
-  const s=f/(z+f); return [cx+x*s,cy+y*s]
-}
-
-// ── Die geometry ──────────────────────────────────────────────────────────────
-const HS = 10
-const FACE_DEFS: { n: V3; u: V3; v: V3; pips: number }[] = [
-  { n:[0,0,1],  u:[1,0,0],   v:[0,-1,0],  pips:1 },
-  { n:[0,0,-1], u:[-1,0,0],  v:[0,-1,0],  pips:6 },
-  { n:[0,-1,0], u:[1,0,0],   v:[0,0,1],   pips:2 },
-  { n:[0,1,0],  u:[1,0,0],   v:[0,0,-1],  pips:5 },
-  { n:[-1,0,0], u:[0,0,1],   v:[0,-1,0],  pips:3 },
-  { n:[1,0,0],  u:[0,0,-1],  v:[0,-1,0],  pips:4 },
-]
-const PIP_POS: [number,number][][] = [
+// ── Pip positions (normalised -1 to 1) ────────────────────────────────────────
+const PIPS_2D: [number,number][][] = [
   [[0,0]],
-  [[-3.5,-3.5],[3.5,3.5]],
-  [[-3.5,-3.5],[0,0],[3.5,3.5]],
-  [[-3.5,-3.5],[3.5,-3.5],[-3.5,3.5],[3.5,3.5]],
-  [[-3.5,-3.5],[3.5,-3.5],[0,0],[-3.5,3.5],[3.5,3.5]],
-  [[-3.5,-3.5],[3.5,-3.5],[-3.5,0],[3.5,0],[-3.5,3.5],[3.5,3.5]],
+  [[-1,-1],[1,1]],
+  [[-1,-1],[0,0],[1,1]],
+  [[-1,-1],[1,-1],[-1,1],[1,1]],
+  [[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],
+  [[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]],
 ]
-const LIGHT_N: V3 = (([x,y,z]) => { const l=Math.sqrt(x*x+y*y+z*z); return [x/l,y/l,z/l] as V3 })([-0.4,-0.8,0.5])
 
-function drawDie(ctx: CanvasRenderingContext2D, cx: number, cy: number, ax: number, ay: number, az: number, fov: number, faceColor: string, dotColor: string) {
-  const faces = FACE_DEFS.map(f => {
-    const rn = rot3(f.n, ax, ay, az)
-    if (rn[2] <= 0) return null
-    const shade = Math.max(0.18, dot3(rn, LIGHT_N))
-    const c3 = mul3(f.n, HS)
-    const verts = [
-      add3(add3(c3,mul3(f.u,-HS)),mul3(f.v,-HS)),
-      add3(add3(c3,mul3(f.u, HS)),mul3(f.v,-HS)),
-      add3(add3(c3,mul3(f.u, HS)),mul3(f.v, HS)),
-      add3(add3(c3,mul3(f.u,-HS)),mul3(f.v, HS)),
-    ].map(v => rot3(v,ax,ay,az))
-    const depth = verts.reduce((s,v)=>s+v[2],0)/4
-    const pv = verts.map(v=>pr3(v,fov,cx,cy))
-    const pipPts = PIP_POS[f.pips-1].map(([pu,pv_]) =>
-      pr3(rot3(add3(add3(mul3(f.n,HS+0.5),mul3(f.u,pu)),mul3(f.v,pv_)),ax,ay,az),fov,cx,cy)
-    )
-    return { depth, shade, pv, pipPts }
-  }).filter(Boolean).sort((a,b)=>a!.depth-b!.depth)
+// ── Draw a flat illustrated die ───────────────────────────────────────────────
+function drawFlatDie(
+  ctx: CanvasRenderingContext2D,
+  cx: number, cy: number, half: number, angle: number,
+  pipColor: string, pips: number,
+) {
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.rotate(angle)
 
-  for (const f of faces) {
-    if (!f) continue
+  const h = half, r = h * 0.18
+
+  // Drop shadow
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 6
+  ctx.shadowOffsetX = 3
+  ctx.shadowOffsetY = 3
+  ctx.beginPath()
+  ctx.moveTo(-h+r,-h); ctx.lineTo(h-r,-h); ctx.quadraticCurveTo(h,-h,h,-h+r)
+  ctx.lineTo(h,h-r);   ctx.quadraticCurveTo(h,h,h-r,h)
+  ctx.lineTo(-h+r,h);  ctx.quadraticCurveTo(-h,h,-h,h-r)
+  ctx.lineTo(-h,-h+r); ctx.quadraticCurveTo(-h,-h,-h+r,-h)
+  ctx.closePath()
+  // Illustrated face gradient — lighter top-left, darker bottom-right
+  const fg = ctx.createLinearGradient(-h,-h,h,h)
+  fg.addColorStop(0,'#f7f2e8')
+  fg.addColorStop(1,'#d6cdb5')
+  ctx.fillStyle = fg
+  ctx.fill()
+  ctx.restore()
+
+  // Redraw path without shadow for stroke
+  ctx.beginPath()
+  ctx.moveTo(-h+r,-h); ctx.lineTo(h-r,-h); ctx.quadraticCurveTo(h,-h,h,-h+r)
+  ctx.lineTo(h,h-r);   ctx.quadraticCurveTo(h,h,h-r,h)
+  ctx.lineTo(-h+r,h);  ctx.quadraticCurveTo(-h,h,-h,h-r)
+  ctx.lineTo(-h,-h+r); ctx.quadraticCurveTo(-h,-h,-h+r,-h)
+  ctx.closePath()
+  ctx.strokeStyle = 'rgba(90,70,30,0.28)'
+  ctx.lineWidth = 1.2
+  ctx.stroke()
+
+  // Top-left bright edge highlight
+  ctx.beginPath()
+  ctx.moveTo(-h+r,-h); ctx.lineTo(h-r,-h)
+  ctx.moveTo(-h,-h+r); ctx.lineTo(-h,h-r)
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // Pips
+  ctx.fillStyle = pipColor
+  for (const [px,py] of (PIPS_2D[pips-1] ?? [])) {
     ctx.beginPath()
-    ctx.moveTo(f.pv[0][0],f.pv[0][1])
-    f.pv.slice(1).forEach(([x,y])=>ctx.lineTo(x,y))
-    ctx.closePath()
-    ctx.fillStyle = faceColor
+    ctx.arc(px*h*0.54, py*h*0.54, h*0.14, 0, Math.PI*2)
     ctx.fill()
-    ctx.fillStyle = `rgba(0,0,0,${(1-f.shade)*0.72})`
-    ctx.fill()
-    if (f.shade > 0.55) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)'
-      ctx.lineWidth = 0.8
-      ctx.stroke()
-    }
-    ctx.fillStyle = dotColor
-    for (const [px,py] of f.pipPts) {
-      ctx.beginPath(); ctx.arc(px,py,2.1,0,Math.PI*2); ctx.fill()
-    }
   }
+
+  ctx.restore()
 }
 
-// ── Glass drawing ─────────────────────────────────────────────────────────────
-function drawGlass(ctx: CanvasRenderingContext2D, cx: number, liqPhase: number, liqAlpha: number) {
-  const rimY=62, rimRX=68, rimRY=20
-  const tipY=148, botY=172, bRX=24, bRY=7
-  const lY=77, lRX=58, lRY=17
+// ── Draw the flat illustrated martini glass ───────────────────────────────────
+function drawGlass(ctx: CanvasRenderingContext2D, cx: number, pivotY: number, liqAlpha: number, liqPhase: number) {
+  const rimY = pivotY - 85, rimRX = 66, rimRY = 18
+  const tipY = pivotY - 5
+  const stemBot = pivotY + 22, baseRX = 22, baseRY = 6
+  const liqY = rimY + 20, liqRX = 56, liqRY = 14
 
-  // Liquid fill
+  // ── Liquid fill ──
   if (liqAlpha > 0) {
     ctx.save()
+    // Clip to glass bowl
     ctx.beginPath()
-    ctx.moveTo(cx,tipY)
-    ctx.bezierCurveTo(cx+4,tipY-12,cx+rimRX,rimY+30,cx+rimRX,rimY)
-    ctx.lineTo(cx-rimRX,rimY)
-    ctx.bezierCurveTo(cx-rimRX,rimY+30,cx-4,tipY-12,cx,tipY)
+    ctx.moveTo(cx, tipY)
+    ctx.bezierCurveTo(cx+3, tipY-10, cx+rimRX, rimY+22, cx+rimRX, rimY)
+    ctx.lineTo(cx-rimRX, rimY)
+    ctx.bezierCurveTo(cx-rimRX, rimY+22, cx-3, tipY-10, cx, tipY)
     ctx.clip()
-    const sway = Math.sin(liqPhase)*2
+    const sway = Math.sin(liqPhase) * 2.5
+    // Body
     ctx.beginPath()
-    ctx.moveTo(cx+lRX, lY+sway)
-    ctx.bezierCurveTo(cx+lRX,lY+28,cx+4,tipY-10,cx,tipY)
-    ctx.bezierCurveTo(cx-4,tipY-10,cx-lRX,lY+28,cx-lRX,lY+sway)
-    ctx.ellipse(cx,lY+sway,lRX,lRY,0,Math.PI,0)
-    const lg=ctx.createLinearGradient(cx,lY,cx,tipY)
-    lg.addColorStop(0,`rgba(195,158,42,${liqAlpha*0.52})`)
-    lg.addColorStop(1,`rgba(130,95,10,${liqAlpha*0.82})`)
-    ctx.fillStyle=lg; ctx.fill()
-    ctx.beginPath(); ctx.ellipse(cx,lY+sway,lRX,lRY,0,0,Math.PI*2)
-    ctx.fillStyle=`rgba(210,178,62,${liqAlpha*0.42})`; ctx.fill()
-    ctx.beginPath(); ctx.ellipse(cx-lRX*0.25,lY-lRY*0.25+sway,lRX*0.42,lRY*0.32,0,0,Math.PI*2)
-    ctx.fillStyle=`rgba(255,245,170,${liqAlpha*0.38})`; ctx.fill()
+    ctx.moveTo(cx+liqRX, liqY+sway)
+    ctx.bezierCurveTo(cx+liqRX, liqY+32, cx+3, tipY-8, cx, tipY)
+    ctx.bezierCurveTo(cx-3, tipY-8, cx-liqRX, liqY+32, cx-liqRX, liqY+sway)
+    ctx.ellipse(cx, liqY+sway, liqRX, liqRY, 0, Math.PI, 0)
+    const lg = ctx.createLinearGradient(cx-liqRX, liqY, cx+liqRX, liqY+40)
+    lg.addColorStop(0, `rgba(100,210,205,${liqAlpha*0.72})`)
+    lg.addColorStop(1, `rgba(55,165,158,${liqAlpha*0.88})`)
+    ctx.fillStyle = lg; ctx.fill()
+    // Surface ellipse
+    ctx.beginPath()
+    ctx.ellipse(cx, liqY+sway, liqRX, liqRY, 0, 0, Math.PI*2)
+    ctx.fillStyle = `rgba(140,225,220,${liqAlpha*0.55})`; ctx.fill()
+    // Surface highlight blob
+    ctx.beginPath()
+    ctx.ellipse(cx-liqRX*0.2, liqY-liqRY*0.3+sway, liqRX*0.48, liqRY*0.38, 0, 0, Math.PI*2)
+    ctx.fillStyle = `rgba(255,255,255,${liqAlpha*0.7})`; ctx.fill()
     ctx.restore()
   }
 
-  // Glass tint
+  // ── Glass bowl fill (very subtle glass tint) ──
   ctx.save()
   ctx.beginPath()
-  ctx.moveTo(cx,tipY)
-  ctx.bezierCurveTo(cx+4,tipY-12,cx+rimRX,rimY+30,cx+rimRX,rimY)
-  ctx.lineTo(cx-rimRX,rimY)
-  ctx.bezierCurveTo(cx-rimRX,rimY+30,cx-4,tipY-12,cx,tipY)
+  ctx.moveTo(cx, tipY)
+  ctx.bezierCurveTo(cx+3, tipY-10, cx+rimRX, rimY+22, cx+rimRX, rimY)
+  ctx.lineTo(cx-rimRX, rimY)
+  ctx.bezierCurveTo(cx-rimRX, rimY+22, cx-3, tipY-10, cx, tipY)
   ctx.clip()
-  const bg=ctx.createLinearGradient(cx-rimRX,rimY,cx+rimRX,rimY)
-  bg.addColorStop(0,'rgba(120,225,215,0.13)')
-  bg.addColorStop(0.5,'rgba(120,225,215,0.02)')
-  bg.addColorStop(1,'rgba(120,225,215,0.13)')
-  ctx.fillStyle=bg; ctx.fillRect(cx-rimRX,rimY,rimRX*2,tipY-rimY)
+  const gt = ctx.createLinearGradient(cx-rimRX, rimY, cx+rimRX, rimY)
+  gt.addColorStop(0,'rgba(160,235,230,0.12)')
+  gt.addColorStop(0.5,'rgba(160,235,230,0.02)')
+  gt.addColorStop(1,'rgba(160,235,230,0.12)')
+  ctx.fillStyle = gt
+  ctx.fillRect(cx-rimRX, rimY, rimRX*2, tipY-rimY)
+  // Left glass reflection stripe
+  ctx.beginPath()
+  ctx.moveTo(cx-rimRX+9, rimY+6)
+  ctx.bezierCurveTo(cx-rimRX+14, rimY+22, cx-rimRX+8, tipY-28, cx-14, tipY-8)
+  ctx.strokeStyle = 'rgba(255,255,255,0.32)'
+  ctx.lineWidth = 7
+  ctx.lineCap = 'round'
+  ctx.stroke()
   ctx.restore()
 
-  // Walls
-  ctx.lineCap='round'; ctx.lineJoin='round'
+  // ── Glass walls ──
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
   for (const side of [-1,1]) {
     ctx.beginPath()
-    ctx.moveTo(cx+side*rimRX,rimY)
-    ctx.bezierCurveTo(cx+side*rimRX,rimY+30,cx+side*4,tipY-12,cx,tipY)
-    ctx.strokeStyle='rgba(120,225,215,0.72)'; ctx.lineWidth=2; ctx.stroke()
+    ctx.moveTo(cx+side*rimRX, rimY)
+    ctx.bezierCurveTo(cx+side*rimRX, rimY+22, cx+side*3, tipY-10, cx, tipY)
+    ctx.strokeStyle = 'rgba(230,250,250,0.88)'
+    ctx.lineWidth = 2.2; ctx.stroke()
   }
-  // Left inner highlight
+
+  // ── Rim ──
+  // Back half (darker, recedes)
   ctx.beginPath()
-  ctx.moveTo(cx-rimRX+5,rimY+8)
-  ctx.bezierCurveTo(cx-rimRX+7,rimY+30,cx-7,tipY-18,cx-3,tipY-5)
-  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=3.5; ctx.stroke()
+  ctx.ellipse(cx, rimY, rimRX, rimRY, 0, 0, Math.PI)
+  ctx.strokeStyle = 'rgba(165,130,25,0.55)'; ctx.lineWidth = 3.5; ctx.stroke()
+  // Front half (gold)
+  ctx.beginPath()
+  ctx.ellipse(cx, rimY, rimRX, rimRY, 0, Math.PI, Math.PI*2)
+  ctx.strokeStyle = '#c9a84c'; ctx.lineWidth = 5; ctx.stroke()
+  // Highlight stripe on rim
+  ctx.beginPath()
+  ctx.ellipse(cx-rimRX*0.22, rimY-rimRY*0.52, rimRX*0.32, rimRY*0.45, 0.1, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.fill()
 
-  // Rim back half (dim)
-  ctx.beginPath(); ctx.ellipse(cx,rimY,rimRX,rimRY,0,0,Math.PI)
-  ctx.strokeStyle='rgba(100,200,195,0.38)'; ctx.lineWidth=1.5; ctx.stroke()
-  // Rim front half (bright)
-  ctx.beginPath(); ctx.ellipse(cx,rimY,rimRX,rimRY,0,Math.PI,Math.PI*2)
-  ctx.strokeStyle='rgba(180,240,235,0.88)'; ctx.lineWidth=2; ctx.stroke()
-  // Rim sparkle
-  ctx.beginPath(); ctx.ellipse(cx-rimRX*0.3,rimY-rimRY*0.55,rimRX*0.16,rimRY*0.28,0,0,Math.PI*2)
-  ctx.fillStyle='rgba(255,255,255,0.48)'; ctx.fill()
+  // ── Stem ──
+  ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(cx, stemBot)
+  ctx.strokeStyle = 'rgba(210,240,238,0.72)'; ctx.lineWidth = 2.2; ctx.stroke()
 
-  // Stem + base
-  ctx.beginPath(); ctx.moveTo(cx,tipY); ctx.lineTo(cx,botY)
-  ctx.strokeStyle='rgba(100,215,205,0.6)'; ctx.lineWidth=2.2; ctx.stroke()
-  ctx.beginPath(); ctx.ellipse(cx,botY,bRX,bRY,0,0,Math.PI*2)
-  ctx.strokeStyle='rgba(100,215,205,0.55)'; ctx.lineWidth=1.8; ctx.stroke()
-  ctx.fillStyle='rgba(80,180,170,0.1)'; ctx.fill()
+  // ── Base ──
+  ctx.beginPath(); ctx.ellipse(cx, stemBot, baseRX, baseRY, 0, 0, Math.PI*2)
+  ctx.strokeStyle = 'rgba(175,228,224,0.65)'; ctx.lineWidth = 1.8; ctx.stroke()
+  const bfg = ctx.createRadialGradient(cx-baseRX*0.3, stemBot-baseRY*0.5, 0, cx, stemBot, baseRX)
+  bfg.addColorStop(0,'rgba(160,225,220,0.22)'); bfg.addColorStop(1,'rgba(80,170,165,0.06)')
+  ctx.fillStyle = bfg; ctx.fill()
+}
+
+// ── Draw the liquid blob splash ───────────────────────────────────────────────
+function drawBlob(ctx: CanvasRenderingContext2D, cx: number, cy: number, sc: number) {
+  if (sc <= 0) return
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.scale(sc, sc)
+
+  // Main blob path (organic liquid splash shape, inspired by the second reference)
+  ctx.beginPath()
+  ctx.moveTo(0,-68)
+  ctx.bezierCurveTo(18,-85, 55,-72, 70,-48)   // upper right finger
+  ctx.bezierCurveTo(88,-28, 95,5, 82,32)
+  ctx.bezierCurveTo(68,58, 35,62, 12,72)       // lower right
+  ctx.bezierCurveTo(-8,82, -28,72, -32,52)
+  ctx.bezierCurveTo(-38,30, -22,8, -38,-8)
+  ctx.bezierCurveTo(-52,-22, -82,-12, -78,-44) // left finger
+  ctx.bezierCurveTo(-74,-72, -22,-80, 0,-68)
+  ctx.closePath()
+
+  const bg = ctx.createRadialGradient(-10,-20,5, 0,0, 88)
+  bg.addColorStop(0,'rgba(215,178,55,0.92)')
+  bg.addColorStop(0.55,'rgba(200,162,45,0.82)')
+  bg.addColorStop(1,'rgba(168,132,28,0.68)')
+  ctx.fillStyle = bg; ctx.fill()
+
+  // Inner highlight
+  ctx.beginPath()
+  ctx.ellipse(-18,-28, 26,14,-0.4, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(255,248,190,0.5)'; ctx.fill()
+
+  // Satellite drops
+  for (const [sx,sy,sr] of [[88,-42,8],[108,-4,5],[65,-80,6],[-88,-35,7],[22,82,5],[-30,78,6],[100,18,4],[42,-88,5],[-55,55,4]] as [number,number,number][]) {
+    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2)
+    ctx.fillStyle = 'rgba(205,165,42,0.82)'; ctx.fill()
+    // Tiny highlight
+    ctx.beginPath(); ctx.arc(sx-sr*0.3,sy-sr*0.35,sr*0.3,0,Math.PI*2)
+    ctx.fillStyle = 'rgba(255,245,180,0.55)'; ctx.fill()
+  }
+
+  ctx.restore()
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Die { ax:number; ay:number; az:number; rax:number; ray:number; raz:number; orbit:number; x:number; y:number; vx:number; vy:number }
-interface Drop { x:number; y:number; vx:number; vy:number; life:number; r:number; frozen:boolean }
-interface Anim { phase:'idle'|'throw'|'air'; t:number; dice:[Die,Die]; drops:Drop[]; splashR:number; frozenDrops:Drop[] }
+interface Die { orbitAngle: number; spin: number; x: number; y: number; vx: number; vy: number; frozen: boolean }
+interface AnimState {
+  phase: 'idle' | 'throw' | 'air'
+  t: number
+  glassAngle: number
+  blobScale: number
+  liqAlpha: number
+  dice: [Die, Die]
+}
 
-interface Props { onClick:()=>void; disabled?:boolean; spinning?:boolean }
+interface Props { onClick: () => void; disabled?: boolean; spinning?: boolean }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function LuckyMartiniButton({ onClick, disabled, spinning }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const anim = useRef<Anim>({
-    phase:'idle', t:0, splashR:0, drops:[], frozenDrops:[],
-    dice:[
-      { ax:0,   ay:0,   az:0,   rax:0.021, ray:0.034, raz:0.017, orbit:0,        x:100, y:108, vx:0, vy:0 },
-      { ax:1.2, ay:0.8, az:0.5, rax:0.017, ray:0.027, raz:0.023, orbit:Math.PI,  x:100, y:108, vx:0, vy:0 },
+  const liqPhase = useRef(0)
+  const prevSpinning = useRef(false)
+  const frameRef = useRef(0)
+
+  const st = useRef<AnimState>({
+    phase: 'idle', t: 0, glassAngle: 0, blobScale: 0, liqAlpha: 1,
+    dice: [
+      { orbitAngle: 0,       spin: 0,   x: 0, y: 0, vx: -2.2, vy: -4.8, frozen: false },
+      { orbitAngle: Math.PI, spin: 0.8, x: 0, y: 0, vx:  2.6, vy: -5.6, frozen: false },
     ],
   })
-  const frameRef = useRef(0)
-  const prevSpinning = useRef(false)
-  const liqPhase = useRef(0)
 
   useEffect(() => {
     const was = prevSpinning.current
     prevSpinning.current = !!spinning
-    const st = anim.current
     if (spinning && !was) {
-      st.phase = 'throw'; st.t = 0; st.drops = []; st.frozenDrops = []; st.splashR = 0
-      st.dice[0].vx = -2.4; st.dice[0].vy = -5.2
-      st.dice[1].vx =  2.9; st.dice[1].vy = -6.0
+      const s = st.current
+      s.phase = 'throw'; s.t = 0; s.blobScale = 0; s.liqAlpha = 1
+      s.dice[0].frozen = false; s.dice[1].frozen = false
     }
     if (!spinning && was) {
-      st.phase = 'idle'; st.drops = []; st.frozenDrops = []; st.splashR = 0
+      const s = st.current
+      s.phase = 'idle'; s.glassAngle = 0; s.blobScale = 0; s.liqAlpha = 1
+      s.dice[0].orbitAngle = 0; s.dice[1].orbitAngle = Math.PI
     }
   }, [spinning])
 
@@ -194,108 +261,137 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
     const W = canvas.width, H = canvas.height
-    const CX = W / 2
-    const FOV = 160
-    const ORBIT_CX=CX, ORBIT_CY=108, ORBIT_RX=24, ORBIT_RY=8
+
+    // Glass pivot coords (center of glass, near stem-bowl junction)
+    const GCX = W / 2
+    const GPIVOT_Y = 168
+
+    // Idle orbit of dice inside glass (ellipse matching liquid surface perspective)
+    const ORBIT_CX = GCX, ORBIT_CY = GPIVOT_Y - 62
+    const ORBIT_RX = 22, ORBIT_RY = 7
+
+    // Where blob renders in the air phase (upper-right area)
+    const BLOB_CX = W * 0.66, BLOB_CY = H * 0.3
+
+    // Where dice float in air phase
+    const AIR_POS: [number,number][] = [[W*0.55, H*0.14], [W*0.78, H*0.2]]
 
     function tick() {
-      const st = anim.current
+      const s = st.current
       liqPhase.current += 0.04
-      ctx.clearRect(0,0,W,H)
+      ctx.clearRect(0, 0, W, H)
 
-      const spd = st.phase === 'idle' ? 1 : 2.5
-      for (const d of st.dice) { d.ax += d.rax*spd; d.ay += d.ray*spd; d.az += d.raz*spd }
-
-      if (st.phase === 'idle') {
-        for (const [i,d] of st.dice.entries()) {
-          d.orbit += 0.018
-          const a = d.orbit + i * Math.PI
-          d.x = ORBIT_CX + Math.cos(a)*ORBIT_RX
-          d.y = ORBIT_CY + Math.sin(a)*ORBIT_RY
+      if (s.phase === 'idle') {
+        for (const [i,d] of s.dice.entries()) {
+          d.orbitAngle += 0.016
+          const a = d.orbitAngle + i * Math.PI
+          d.x = ORBIT_CX + Math.cos(a) * ORBIT_RX
+          d.y = ORBIT_CY + Math.sin(a) * ORBIT_RY
+          d.spin += 0.012
         }
-        drawGlass(ctx, CX, liqPhase.current, 1)
-        const order = [0,1].sort((a,b)=>st.dice[a].y - st.dice[b].y)
+        s.glassAngle = 0
+        s.blobScale = 0
+        s.liqAlpha = 1
+
+        drawGlass(ctx, GCX, GPIVOT_Y, 1, liqPhase.current)
+        // Back die first (behind glass center)
+        const order = [0,1].sort((a,b) => s.dice[a].y - s.dice[b].y)
         for (const i of order)
-          drawDie(ctx,st.dice[i].x,st.dice[i].y,st.dice[i].ax,st.dice[i].ay,st.dice[i].az,FOV,
-            i===0?'rgba(220,185,70,0.95)':'rgba(75,200,192,0.95)',
-            i===0?'rgba(40,20,0,0.9)':'rgba(0,45,55,0.9)')
+          drawFlatDie(ctx, s.dice[i].x, s.dice[i].y, 11, s.dice[i].spin,
+            i===0 ? '#3d7a76' : '#8b6914', i===0 ? 3 : 5)
 
-      } else if (st.phase === 'throw') {
-        st.t += 1/60
-        const tN = Math.min(1, st.t / 0.7)
-        for (const d of st.dice) { d.x += d.vx; d.y += d.vy; d.vy += 0.12 }
-        // Spawn drops
-        if (tN < 0.45) {
-          for (let i=0;i<2;i++) st.drops.push({
-            x:CX+(Math.random()-0.5)*50, y:80+(Math.random()-0.5)*25,
-            vx:(Math.random()-0.5)*5, vy:-2.5-Math.random()*3.5,
-            life:1, r:2+Math.random()*3.5, frozen:false,
-          })
+      } else if (s.phase === 'throw') {
+        s.t += 1/60
+        const tN = Math.min(1, s.t / 0.72)
+        // ease in-out
+        const ease = tN < 0.5 ? 2*tN*tN : 1-Math.pow(-2*tN+2,2)/2
+
+        // Glass tilts clockwise (opening swings to upper-right to "throw")
+        const TARGET_ANGLE = 0.9  // ~52°
+        s.glassAngle = ease * TARGET_ANGLE
+
+        // Liquid drains as glass tilts past ~30%
+        s.liqAlpha = Math.max(0, 1 - (tN - 0.25) * 3.5)
+
+        // Dice fly from orbit → air positions after ~40% tilt
+        if (tN > 0.38) {
+          const dT = Math.min(1, (tN-0.38)/0.62)
+          for (const [,d] of s.dice.entries()) {
+            if (!d.frozen) {
+              d.x += d.vx; d.y += d.vy; d.vy += 0.14
+              d.spin += 0.08
+            }
+          }
+          // Check if they've reached target
+          if (tN >= 1) {
+            for (const [i,d] of s.dice.entries()) {
+              d.x = AIR_POS[i][0]; d.y = AIR_POS[i][1]; d.frozen = true
+            }
+          }
+          void dT
+        } else {
+          // Still orbiting
+          for (const [i,d] of s.dice.entries()) {
+            d.orbitAngle += 0.016
+            const a = d.orbitAngle + i * Math.PI
+            d.x = ORBIT_CX + Math.cos(a) * ORBIT_RX
+            d.y = ORBIT_CY + Math.sin(a) * ORBIT_RY
+            d.spin += 0.012
+          }
         }
-        st.drops = st.drops.filter(d=>{ d.x+=d.vx; d.y+=d.vy; d.vy+=0.13; d.life-=0.025; return d.life>0 })
 
-        const liqAlpha = Math.max(0, 1 - tN*2.8)
-        drawGlass(ctx, CX, liqPhase.current, liqAlpha)
-        for (const drop of st.drops) {
-          ctx.beginPath(); ctx.arc(drop.x,drop.y,drop.r*drop.life,0,Math.PI*2)
-          ctx.fillStyle=`rgba(200,162,45,${drop.life*0.82})`; ctx.fill()
-        }
-        for (let i=0;i<2;i++)
-          drawDie(ctx,st.dice[i].x,st.dice[i].y,st.dice[i].ax,st.dice[i].ay,st.dice[i].az,FOV,
-            i===0?'rgba(220,185,70,0.95)':'rgba(75,200,192,0.95)',
-            i===0?'rgba(40,20,0,0.9)':'rgba(0,45,55,0.9)')
+        // Blob grows in as liquid pours out
+        s.blobScale = Math.max(0, (tN - 0.3) / 0.7)
 
-        if (tN >= 1) {
-          // Freeze drops & transition
-          st.frozenDrops = st.drops.map(d=>({...d, frozen:true}))
-          st.drops = []
-          st.dice[0].x=CX-44; st.dice[0].y=48; st.dice[0].vx=0; st.dice[0].vy=0
-          st.dice[1].x=CX+44; st.dice[1].y=36; st.dice[1].vx=0; st.dice[1].vy=0
-          st.phase='air'
-        }
-
-      } else { // air
-        st.t += 1/60
-        st.splashR = Math.min(145, st.splashR + 5)
-        st.dice[0].y = 48 + Math.sin(st.t*1.4)*3.5
-        st.dice[1].y = 36 + Math.sin(st.t*1.4+1.2)*3.5
-
-        // Splash background
-        const sg = ctx.createRadialGradient(CX,H*0.76,0,CX,H*0.76,st.splashR)
-        sg.addColorStop(0,'rgba(200,162,45,0.45)')
-        sg.addColorStop(0.45,'rgba(75,200,192,0.25)')
-        sg.addColorStop(1,'rgba(75,200,192,0)')
+        // Draw tilted glass
         ctx.save()
-        ctx.beginPath(); ctx.ellipse(CX,H*0.76,st.splashR,st.splashR*0.38,0,0,Math.PI*2)
-        ctx.fillStyle=sg; ctx.fill()
-        // Splash spikes
-        for (let i=0;i<8;i++) {
-          const angle = (i/8)*Math.PI*2
-          const len = st.splashR*(0.7+0.3*Math.sin(st.t*3+i))
-          ctx.beginPath()
-          ctx.moveTo(CX+Math.cos(angle)*st.splashR*0.4, H*0.76+Math.sin(angle)*st.splashR*0.15)
-          ctx.lineTo(CX+Math.cos(angle)*len*0.9, H*0.76+Math.sin(angle)*len*0.36)
-          ctx.strokeStyle=`rgba(200,162,45,${0.22*Math.sin(st.t*2+i*0.7+1)})`
-          ctx.lineWidth=2+Math.sin(st.t*2+i)*1.5; ctx.stroke()
-        }
+        ctx.translate(GCX, GPIVOT_Y)
+        ctx.rotate(s.glassAngle)
+        ctx.translate(-GCX, -GPIVOT_Y)
+        drawGlass(ctx, GCX, GPIVOT_Y, s.liqAlpha, liqPhase.current)
         ctx.restore()
 
-        // Frozen drops
-        for (const drop of st.frozenDrops) {
-          ctx.beginPath(); ctx.arc(drop.x,drop.y,drop.r*drop.life,0,Math.PI*2)
-          ctx.fillStyle=`rgba(200,162,45,${drop.life*0.5})`; ctx.fill()
+        // Blob
+        drawBlob(ctx, BLOB_CX, BLOB_CY, s.blobScale)
+
+        // Dice
+        for (const [i,d] of s.dice.entries())
+          drawFlatDie(ctx, d.x, d.y, 11, d.spin,
+            i===0 ? '#3d7a76' : '#8b6914', i===0 ? 3 : 5)
+
+        if (tN >= 1) s.phase = 'air'
+
+      } else { // air
+        s.t += 1/60
+        // Dice bob gently
+        for (const [i,d] of s.dice.entries()) {
+          d.x = AIR_POS[i][0]
+          d.y = AIR_POS[i][1] + Math.sin(s.t * 1.8 + i * 1.3) * 4
+          d.spin += 0.022
         }
 
-        drawGlass(ctx, CX, liqPhase.current, 0)
-        for (let i=0;i<2;i++)
-          drawDie(ctx,st.dice[i].x,st.dice[i].y,st.dice[i].ax,st.dice[i].ay,st.dice[i].az,FOV,
-            i===0?'rgba(220,185,70,0.95)':'rgba(75,200,192,0.95)',
-            i===0?'rgba(40,20,0,0.9)':'rgba(0,45,55,0.9)')
+        // Blob fully shown, slight pulse
+        s.blobScale = 1 + Math.sin(s.t * 2.2) * 0.02
+
+        // Glass stays tilted
+        ctx.save()
+        ctx.translate(GCX, GPIVOT_Y)
+        ctx.rotate(0.9)
+        ctx.translate(-GCX, -GPIVOT_Y)
+        drawGlass(ctx, GCX, GPIVOT_Y, 0, liqPhase.current)
+        ctx.restore()
+
+        drawBlob(ctx, BLOB_CX, BLOB_CY, s.blobScale)
+
+        for (const [i,d] of s.dice.entries())
+          drawFlatDie(ctx, d.x, d.y, 11, d.spin,
+            i===0 ? '#3d7a76' : '#8b6914', i===0 ? 3 : 5)
 
         // Rolling text
-        ctx.textAlign='center'; ctx.font='bold 12px system-ui,sans-serif'
-        ctx.fillStyle='rgba(200,162,45,0.9)'
-        ctx.fillText('Rolling…', CX, H-10)
+        ctx.font = 'bold 11px system-ui,sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillStyle = 'rgba(200,162,45,0.92)'
+        ctx.fillText('Rolling…', W/2, H - 8)
       }
 
       frameRef.current = requestAnimationFrame(tick)
@@ -311,12 +407,17 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
       onClick={onClick}
       disabled={disabled}
       aria-label="Generate a random cocktail"
-      style={{ background:'none', border:'none', padding:0, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, display:'flex', flexDirection:'column', alignItems:'center' }}
+      style={{
+        background: 'none', border: 'none', padding: 0,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.4 : 1,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+      }}
       className="group active:scale-95 transition-transform duration-150"
     >
-      <canvas ref={canvasRef} width={200} height={220} style={{ display:'block' }} />
+      <canvas ref={canvasRef} width={220} height={256} style={{ display: 'block' }} />
       {!spinning && (
-        <span className="mt-1 text-xs font-medium tracking-wide text-[var(--teal)] group-hover:text-[var(--cream)] transition-colors duration-200">
+        <span className="mt-0.5 text-xs font-medium tracking-wide text-[var(--teal)] group-hover:text-[var(--cream)] transition-colors duration-200">
           Feeling Lucky?
         </span>
       )}
