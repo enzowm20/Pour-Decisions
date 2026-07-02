@@ -188,13 +188,47 @@ export default function ExperimentLabPage() {
 
   // One sentence per suggestion explaining why THAT specific build fits —
   // led by its anchor spirit, framed against the occasion's overall reason.
-  function occasionComboDescription(combo: Combo, reason: string): string {
+  function occasionComboDescription(combo: Combo, reason: string, index: number): string {
     const spirit = combo.bySlot.spirit?.[0]
+    const spirits = combo.bySlot.spirit ?? []
+    const mixer = combo.bySlot.mixer?.[0]
+    const citrus = combo.bySlot.citrus?.[0]
+    const sweetener = combo.bySlot.sweetener?.[0]
+    const fruit = combo.bySlot.fruit?.[0]
     const proven = combo.learnedIds.size > 0
-    const lede = spirit ? `${spirit.name}-led` : "This build"
-    return proven
-      ? `${lede}, playing into ${reason} — and a pairing you've already proven works.`
-      : `${lede}, playing into ${reason}.`
+    const provenSuffix = proven ? " — and a pairing you've already proven works together." : "."
+
+    switch (index % 5) {
+      case 0:
+        // Spirit-led angle
+        return spirit
+          ? `${spirit.name}-led and built around ${reason}${provenSuffix}`
+          : `Built around ${reason}${provenSuffix}`
+      case 1:
+        // Supporting ingredient angle
+        if (mixer) return `The ${mixer.name} here does the heavy lifting — grounding this in ${reason}${provenSuffix}`
+        if (citrus) return `A hit of ${citrus.name} is the key — it's what ties this build to ${reason}${provenSuffix}`
+        return `The supporting cast here is what sells ${reason}${provenSuffix}`
+      case 2:
+        // Texture / character angle
+        if (spirits.length > 1)
+          return `A multi-spirit build that leans into the layered character of ${reason}${provenSuffix}`
+        if (sweetener) return `${sweetener.name} softens the edges, giving this the approachable sweetness that suits ${reason}${provenSuffix}`
+        return `A cleaner, more stripped-back take — still dialled in for ${reason}${provenSuffix}`
+      case 3:
+        // Crowd / setting angle
+        if (fruit) return `${fruit.name} brings the colour and energy — exactly what you want when going for ${reason}${provenSuffix}`
+        if (spirit) return `${spirit.name} carries the occasion well here — a reliable anchor for ${reason}${provenSuffix}`
+        return `Crowd-friendly and well-suited to ${reason}${provenSuffix}`
+      case 4:
+        // Contrast / complexity angle
+        if (citrus && sweetener)
+          return `The push-pull of ${citrus.name} and ${sweetener.name} gives this one real depth — interesting enough for ${reason}${provenSuffix}`
+        if (spirit) return `A more unexpected direction — ${spirit.name} isn't the obvious choice for ${reason}, but it works${provenSuffix}`
+        return `A less obvious pick, but one that earns its place for ${reason}${provenSuffix}`
+      default:
+        return `Suited to ${reason}${provenSuffix}`
+    }
   }
 
   useEffect(() => {
@@ -335,7 +369,7 @@ export default function ExperimentLabPage() {
                 key={i}
                 combo={combo}
                 tags={occasionResult.tags}
-                description={occasionComboDescription(combo, occasionResult.reason)}
+                description={occasionComboDescription(combo, occasionResult.reason, i)}
                 onTry={() => tryCombo(combo, occasionResult.tags)}
               />
             ))}
