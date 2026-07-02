@@ -6,9 +6,9 @@ import gifSrc from "../assets/swirl.gif"
 
 interface Props { onClick: () => void; disabled?: boolean; spinning?: boolean }
 
-const DISPLAY_W = 220
+// CSS display size (px)
+const DISPLAY_W = 240
 
-// ── Minimal HSL helpers (only used on already-scaled small frames) ────────────
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   r /= 255; g /= 255; b /= 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
@@ -34,22 +34,15 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
     if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
     return p
   }
-  return [
-    Math.round(hue2(h + 1 / 3) * 255),
-    Math.round(hue2(h) * 255),
-    Math.round(hue2(h - 1 / 3) * 255),
-  ]
+  return [Math.round(hue2(h + 1 / 3) * 255), Math.round(hue2(h) * 255), Math.round(hue2(h - 1 / 3) * 255)]
 }
 
-// White/near-white → transparent; red liquid → yellow via +60° hue shift
+// White/near-white → transparent; red liquid → yellow-gold via +60° hue shift
 function recolor(data: Uint8ClampedArray) {
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i], g = data[i + 1], b = data[i + 2]
     if (data[i + 3] < 10) continue
-    // Remove white background (all channels near 255)
     if (r > 220 && g > 220 && b > 220) { data[i + 3] = 0; continue }
-    // Shift hue +60°: red (0°) → yellow-gold (60°)
-    // Low-saturation (glass/grey) pixels are unaffected since hue shift has no visible effect
     const [h, s, l] = rgbToHsl(r, g, b)
     const [nr, ng, nb] = hslToRgb((h + 60) % 360, s, l)
     data[i] = nr; data[i + 1] = ng; data[i + 2] = nb
@@ -61,9 +54,13 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
   const framesRef = useRef<Array<{ id: ImageData; delay: number }>>([])
   const animRef = useRef({ idx: 0, last: 0 })
   const rafRef = useRef(0)
-  const displayHRef = useRef(DISPLAY_W)
+  // Actual canvas pixel dimensions (DISPLAY_W × dpr for HiDPI sharpness)
+  const pixDimsRef = useRef({ w: DISPLAY_W, h: DISPLAY_W })
 
   useEffect(() => {
+    const dpr = window.devicePixelRatio || 1
+    const pixW = Math.round(DISPLAY_W * dpr)
+
     fetch(gifSrc)
       .then(r => r.arrayBuffer())
       .then(buf => {
@@ -72,17 +69,17 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
         const raw: any[] = decompressFrames(gif, true)
         const GW: number = gif.lsd.width
         const GH: number = gif.lsd.height
-        const DH = Math.round(GH * DISPLAY_W / GW)
-        displayHRef.current = DH
+        const pixH = Math.round(GH * pixW / GW)
+        pixDimsRef.current = { w: pixW, h: pixH }
 
-        // Offscreen at native GIF size for compositing
+        // Full-size offscreen for compositing each gifuct frame
         const full = document.createElement("canvas")
         full.width = GW; full.height = GH
         const fullCtx = full.getContext("2d")!
 
-        // Scaled-down offscreen for pixel storage
+        // HiDPI-sized offscreen for pixel storage
         const small = document.createElement("canvas")
-        small.width = DISPLAY_W; small.height = DH
+        small.width = pixW; small.height = pixH
         const smallCtx = small.getContext("2d")!
         smallCtx.imageSmoothingEnabled = true
         smallCtx.imageSmoothingQuality = "high"
@@ -91,17 +88,14 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
 
         for (const f of raw) {
           try {
-            // Copy patch into a fresh ArrayBuffer-backed array (ImageData requires ArrayBuffer, not SharedArrayBuffer)
             const patch = new Uint8ClampedArray(f.patch as Uint8ClampedArray)
             fullCtx.putImageData(new ImageData(patch, GW, GH), 0, 0)
-
-            smallCtx.clearRect(0, 0, DISPLAY_W, DH)
-            smallCtx.drawImage(full, 0, 0, DISPLAY_W, DH)
-
-            const id = smallCtx.getImageData(0, 0, DISPLAY_W, DH)
+            smallCtx.clearRect(0, 0, pixW, pixH)
+            smallCtx.drawImage(full, 0, 0, pixW, pixH)
+            const id = smallCtx.getImageData(0, 0, pixW, pixH)
             recolor(id.data)
-            // 3× slower than native GIF speed
-            processed.push({ id, delay: Math.max(60, (f.delay || 5) * 10 * 3) })
+            // Native GIF speed: delay is in 1/100s, convert to ms
+            processed.push({ id, delay: Math.max(16, (f.delay || 3) * 10) })
           } catch {
             // skip malformed frames
           }
@@ -109,8 +103,14 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
 
         framesRef.current = processed
 
+        // Set canvas to HiDPI pixel size, CSS display size stays at DISPLAY_W
         const canvas = canvasRef.current
-        if (canvas) { canvas.width = DISPLAY_W; canvas.height = DH }
+        if (canvas) {
+          canvas.width = pixW
+          canvas.height = pixH
+          canvas.style.width = DISPLAY_W + "px"
+          canvas.style.height = Math.round(GH * DISPLAY_W / GW) + "px"
+        }
       })
       .catch(console.error)
   }, [])
@@ -127,18 +127,15 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
         if (now - st.last >= frame.delay) {
           const cv = canvasRef.current
           if (!cv) { rafRef.current = requestAnimationFrame(tick); return }
-          // Sync dimensions in case canvas was resized after GIF loaded
-          const dh = displayHRef.current
-          if (cv.width !== DISPLAY_W || cv.height !== dh) {
-            cv.width = DISPLAY_W; cv.height = dh
-          }
+          const { w, h } = pixDimsRef.current
+          if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h }
           const ctx = cv.getContext("2d")!
           ctx.putImageData(frame.id, 0, 0)
           if (spinning) {
             ctx.textAlign = "center"
-            ctx.font = "bold 11px system-ui,sans-serif"
+            ctx.font = `bold ${Math.round(11 * (window.devicePixelRatio || 1))}px system-ui,sans-serif`
             ctx.fillStyle = "rgba(255,220,80,0.9)"
-            ctx.fillText("Rolling the Dice…", DISPLAY_W / 2, dh - 10)
+            ctx.fillText("Rolling the Dice…", w / 2, h - Math.round(10 * (window.devicePixelRatio || 1)))
           }
           st.idx = (st.idx + 1) % frames.length
           st.last = now
@@ -165,7 +162,12 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
       }}
       className="group active:scale-95 transition-transform duration-150"
     >
-      <canvas ref={canvasRef} width={DISPLAY_W} height={DISPLAY_W} style={{ display: "block" }} />
+      <canvas
+        ref={canvasRef}
+        width={DISPLAY_W}
+        height={DISPLAY_W}
+        style={{ display: "block", width: DISPLAY_W + "px", height: DISPLAY_W + "px" }}
+      />
       {!spinning && (
         <span className="mt-0.5 text-xs font-medium tracking-wide text-[var(--teal)] group-hover:text-[var(--cream)] transition-colors duration-200">
           Feeling Lucky?
