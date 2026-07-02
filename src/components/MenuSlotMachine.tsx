@@ -17,12 +17,18 @@ interface Props {
   orderedId?: string | null
 }
 
-const ITEM_W    = 120
-const ITEM_H    = 160
-const SQUARE_W  = ITEM_W + 24   // 144px square before expansion
-const EXPAND_MS = 480
-const COPIES    = 12
+const ITEM_W     = 120
+const ITEM_H     = 160
+const SQUARE_W   = ITEM_W + 24   // 144px square before expansion
+const EXPAND_MS  = 480
 const COPY_START = 5
+// MAX_SPIN_PX: worst-case distance the reel can travel in one spin.
+// spin_time = max(N*ITEM_W/1.6, 2000) + 1200ms, speed = 1.6 px/ms → ~5500px for tiny N.
+// COPIES must be large enough that COPIES*SET_W > COPY_START*SET_W + MAX_SPIN_PX.
+function computeCopies(n: number) {
+  if (n === 0) return 12
+  return Math.max(12, Math.ceil(6000 / (n * ITEM_W)) + COPY_START + 2)
+}
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "core",        label: "Core Menu" },
@@ -54,7 +60,6 @@ export default function MenuSlotMachine({ cocktails, onOrder, orderedId }: Props
   const rafRef      = useRef(0)
   const phaseRef    = useRef<Phase>("square")
   const timersRef   = useRef<ReturnType<typeof setTimeout>[]>([])
-  const targetRef   = useRef(0)   // which cocktail (index in active list) to land on
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [expanded,    setExpanded]    = useState(false)
@@ -74,10 +79,11 @@ export default function MenuSlotMachine({ cocktails, onOrder, orderedId }: Props
 
   const N        = activeCocktails.length
   const SET_W    = N * ITEM_W
+  const COPIES   = computeCopies(N)
   const REEL_ITEMS = useMemo(
     () => (N > 0 ? Array.from({ length: COPIES }, () => activeCocktails).flat() : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [N, selectedCategory],
+    [N, COPIES, selectedCategory],
   )
   const INITIAL_POS = (SQUARE_W - ITEM_W) / 2 - COPY_START * SET_W
 
@@ -129,9 +135,6 @@ export default function MenuSlotMachine({ cocktails, onOrder, orderedId }: Props
     setSelectedIdx(null)
     phaseRef.current = "spinning"
 
-    // Pick the random winner BEFORE spinning starts
-    targetRef.current = Math.floor(Math.random() * N)
-
     // Normalise strip to prevent overflow on repeated spins
     const anchor = getAnchor()
     const reel   = reelRef.current
@@ -168,23 +171,18 @@ export default function MenuSlotMachine({ cocktails, onOrder, orderedId }: Props
           r.style.transform = `translateX(${posRef.current}px)`
           rafRef.current = requestAnimationFrame(t2 => loop(t2, t))
         } else {
-          // Land exactly on the pre-chosen random target
-          const A            = getAnchor()
-          const currentItem  = Math.round((A - posRef.current) / ITEM_W)
-          const tgt          = targetRef.current
-          const fwd          = ((tgt - (currentItem % N) + N) % N)
-          const delta        = fwd === 0 ? N : fwd   // always move forward
-          const snapItem     = currentItem + delta
-          const snapTo       = A - snapItem * ITEM_W
-
-          const dist = Math.abs(posRef.current - snapTo)
-          const dur  = Math.max(300, Math.min(1000, dist / Math.max(speedRef.current, 0.05)))
+          // Snap to whichever item the reel naturally decelerated to
+          const A      = getAnchor()
+          const N_snap = Math.round((A - posRef.current) / ITEM_W)
+          const snapTo = A - N_snap * ITEM_W
+          const dist   = Math.abs(posRef.current - snapTo)
+          const dur    = Math.max(150, Math.min(400, dist / Math.max(speedRef.current, 0.05)))
 
           r.style.transition = `transform ${dur}ms cubic-bezier(0.25,0.46,0.45,0.94)`
           r.style.transform  = `translateX(${snapTo}px)`
           posRef.current     = snapTo
 
-          const landedIdx = ((snapItem % N) + N) % N
+          const landedIdx = ((N_snap % N) + N) % N
           addTimer(() => {
             r.style.transition = ""
             phaseRef.current   = "landed"
@@ -296,8 +294,8 @@ export default function MenuSlotMachine({ cocktails, onOrder, orderedId }: Props
                   fontSize: 13, fontWeight: 600, cursor: "pointer",
                   transition: "background 0.15s, color 0.15s",
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--gold)"; (e.currentTarget as HTMLElement).style.color = "var(--on-gold,#1a1a0e)" }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--cream)" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--teal)"; (e.currentTarget as HTMLElement).style.color = "var(--on-teal,#0a1a18)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--teal)" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--cream)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--gold)" }}
               >
                 {cat.label}
               </button>
