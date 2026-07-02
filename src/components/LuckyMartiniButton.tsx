@@ -86,10 +86,10 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
           const f = raw as { patch: ArrayLike<number>; delay: number }
           try {
             // Write full-size frame
-            const patch = f.patch instanceof Uint8ClampedArray
-              ? f.patch
-              : new Uint8ClampedArray(f.patch as ArrayLike<number>)
-            fullCtx.putImageData(new ImageData(patch, GW, GH), 0, 0)
+            const patchArr = Array.isArray(f.patch) ? f.patch : Array.from(f.patch as ArrayLike<number>)
+            const patch = new Uint8ClampedArray(patchArr)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            fullCtx.putImageData(new ImageData(patch as any, GW, GH), 0, 0)
 
             // Scale down to display size
             smallCtx.clearRect(0, 0, DISPLAY_W, DH)
@@ -118,8 +118,6 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext("2d")!
-
     function tick(now: number) {
       const frames = framesRef.current
       if (frames.length > 0) {
@@ -128,15 +126,18 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
         if (now - st.last >= frame.delay) {
           // Sync canvas size in case it was resized after load
           const { w, h } = dimsRef.current
-          if (canvas.width !== w || canvas.height !== h) {
-            canvas.width = w; canvas.height = h
+          const cv = canvasRef.current
+          if (!cv) { rafRef.current = requestAnimationFrame(tick); return }
+          if (cv.width !== w || cv.height !== h) {
+            cv.width = w; cv.height = h
           }
-          ctx.putImageData(frame.id, 0, 0)
+          const cvCtx = cv.getContext("2d")!
+          cvCtx.putImageData(frame.id, 0, 0)
           if (spinning) {
-            ctx.textAlign = "center"
-            ctx.font = "bold 11px system-ui,sans-serif"
-            ctx.fillStyle = "rgba(100,185,235,0.92)"
-            ctx.fillText("Rolling the Dice…", w / 2, h - 10)
+            cvCtx.textAlign = "center"
+            cvCtx.font = "bold 11px system-ui,sans-serif"
+            cvCtx.fillStyle = "rgba(100,185,235,0.92)"
+            cvCtx.fillText("Rolling the Dice…", w / 2, h - 10)
           }
           st.idx = (st.idx + 1) % frames.length
           st.last = now
