@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 
-// ── Pip positions (normalised -1 to 1) ────────────────────────────────────────
-const PIPS_2D: [number,number][][] = [
+// ── Pip positions (normalised -1..1) ─────────────────────────────────────────
+const PIPS: [number,number][][] = [
   [[0,0]],
   [[-1,-1],[1,1]],
   [[-1,-1],[0,0],[1,1]],
@@ -10,388 +10,215 @@ const PIPS_2D: [number,number][][] = [
   [[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]],
 ]
 
-// ── Draw a flat illustrated die ───────────────────────────────────────────────
-function drawFlatDie(
-  ctx: CanvasRenderingContext2D,
-  cx: number, cy: number, half: number, angle: number,
-  pipColor: string, pips: number,
-) {
+// ── Flat illustrated die ──────────────────────────────────────────────────────
+function drawFlatDie(ctx: CanvasRenderingContext2D, cx: number, cy: number, half: number, angle: number) {
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(angle)
-
   const h = half, r = h * 0.18
-
-  // Drop shadow
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.35)'
-  ctx.shadowBlur = 6
-  ctx.shadowOffsetX = 3
-  ctx.shadowOffsetY = 3
+  // Rounded rect face
   ctx.beginPath()
   ctx.moveTo(-h+r,-h); ctx.lineTo(h-r,-h); ctx.quadraticCurveTo(h,-h,h,-h+r)
   ctx.lineTo(h,h-r);   ctx.quadraticCurveTo(h,h,h-r,h)
   ctx.lineTo(-h+r,h);  ctx.quadraticCurveTo(-h,h,-h,h-r)
   ctx.lineTo(-h,-h+r); ctx.quadraticCurveTo(-h,-h,-h+r,-h)
   ctx.closePath()
-  // Illustrated face gradient — lighter top-left, darker bottom-right
-  const fg = ctx.createLinearGradient(-h,-h,h,h)
-  fg.addColorStop(0,'#f7f2e8')
-  fg.addColorStop(1,'#d6cdb5')
-  ctx.fillStyle = fg
-  ctx.fill()
-  ctx.restore()
-
-  // Redraw path without shadow for stroke
+  const fg = ctx.createLinearGradient(-h,-h,h*0.6,h*0.6)
+  fg.addColorStop(0,'#f8f3e8'); fg.addColorStop(1,'#d8d0b8')
+  ctx.fillStyle = fg; ctx.fill()
+  ctx.strokeStyle = 'rgba(80,60,20,0.22)'; ctx.lineWidth = 1.1; ctx.stroke()
+  // Top-left edge highlight
   ctx.beginPath()
-  ctx.moveTo(-h+r,-h); ctx.lineTo(h-r,-h); ctx.quadraticCurveTo(h,-h,h,-h+r)
-  ctx.lineTo(h,h-r);   ctx.quadraticCurveTo(h,h,h-r,h)
-  ctx.lineTo(-h+r,h);  ctx.quadraticCurveTo(-h,h,-h,h-r)
-  ctx.lineTo(-h,-h+r); ctx.quadraticCurveTo(-h,-h,-h+r,-h)
-  ctx.closePath()
-  ctx.strokeStyle = 'rgba(90,70,30,0.28)'
-  ctx.lineWidth = 1.2
-  ctx.stroke()
-
-  // Top-left bright edge highlight
+  ctx.moveTo(-h+r,-h); ctx.lineTo(h*0.4,-h)
+  ctx.moveTo(-h,-h+r); ctx.lineTo(-h,h*0.4)
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.8; ctx.stroke()
+  // Shadow edge bottom-right
   ctx.beginPath()
-  ctx.moveTo(-h+r,-h); ctx.lineTo(h-r,-h)
-  ctx.moveTo(-h,-h+r); ctx.lineTo(-h,h-r)
-  ctx.strokeStyle = 'rgba(255,255,255,0.75)'
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  // Pips
-  ctx.fillStyle = pipColor
-  for (const [px,py] of (PIPS_2D[pips-1] ?? [])) {
-    ctx.beginPath()
-    ctx.arc(px*h*0.54, py*h*0.54, h*0.14, 0, Math.PI*2)
-    ctx.fill()
+  ctx.moveTo(h*0.5,h); ctx.lineTo(h-r,h)
+  ctx.moveTo(h,h*0.5); ctx.lineTo(h,h-r)
+  ctx.strokeStyle = 'rgba(80,60,20,0.18)'; ctx.lineWidth = 1.5; ctx.stroke()
+  // Pips — use face 5 (always)
+  ctx.fillStyle = 'rgba(45,80,78,0.88)'
+  for (const [px,py] of PIPS[4]) {
+    ctx.beginPath(); ctx.arc(px*h*0.52, py*h*0.52, h*0.13, 0, Math.PI*2); ctx.fill()
   }
-
   ctx.restore()
 }
 
-// ── Draw the flat illustrated martini glass ───────────────────────────────────
-function drawGlass(ctx: CanvasRenderingContext2D, cx: number, pivotY: number, liqAlpha: number, liqPhase: number) {
-  const rimY = pivotY - 85, rimRX = 66, rimRY = 18
-  const tipY = pivotY - 5
-  const stemBot = pivotY + 22, baseRX = 22, baseRY = 6
-  const liqY = rimY + 20, liqRX = 56, liqRY = 14
+// ── Wine glass path helper ────────────────────────────────────────────────────
+function glassPath(ctx: CanvasRenderingContext2D, cx: number) {
+  const rimY=38, rimRX=40
+  const wideY=128, wideRX=64
+  const neckY=192, neckRX=9
+  ctx.beginPath()
+  ctx.moveTo(cx-rimRX, rimY)
+  ctx.bezierCurveTo(cx-rimRX-10,rimY+30, cx-wideRX,wideY-32, cx-wideRX,wideY)
+  ctx.bezierCurveTo(cx-wideRX,wideY+44, cx-neckRX-7,neckY-16, cx-neckRX,neckY)
+  ctx.lineTo(cx+neckRX, neckY)
+  ctx.bezierCurveTo(cx+neckRX+7,neckY-16, cx+wideRX,wideY+44, cx+wideRX,wideY)
+  ctx.bezierCurveTo(cx+wideRX,wideY-32, cx+rimRX+10,rimY+30, cx+rimRX,rimY)
+  ctx.closePath()
+}
+
+// ── Main glass draw ───────────────────────────────────────────────────────────
+function drawWineGlass(ctx: CanvasRenderingContext2D, cx: number, liqPhase: number) {
+  const rimY=38, rimRX=40
+  const wideY=128, wideRX=64
+  const neckY=192, neckRX=9
+  const stemBot=252, baseRX=28, baseRY=7
+
+  // Liquid surface position — gentle sloshing
+  const swayY = Math.sin(liqPhase * 0.6) * 5
+  const swayX = Math.cos(liqPhase * 0.45) * 6
+  const liqSurfY = 90  // how high liquid is in glass
 
   // ── Liquid fill ──
-  if (liqAlpha > 0) {
-    ctx.save()
-    // Clip to glass bowl
-    ctx.beginPath()
-    ctx.moveTo(cx, tipY)
-    ctx.bezierCurveTo(cx+3, tipY-10, cx+rimRX, rimY+22, cx+rimRX, rimY)
-    ctx.lineTo(cx-rimRX, rimY)
-    ctx.bezierCurveTo(cx-rimRX, rimY+22, cx-3, tipY-10, cx, tipY)
-    ctx.clip()
-    const sway = Math.sin(liqPhase) * 2.5
-    // Body
-    ctx.beginPath()
-    ctx.moveTo(cx+liqRX, liqY+sway)
-    ctx.bezierCurveTo(cx+liqRX, liqY+32, cx+3, tipY-8, cx, tipY)
-    ctx.bezierCurveTo(cx-3, tipY-8, cx-liqRX, liqY+32, cx-liqRX, liqY+sway)
-    ctx.ellipse(cx, liqY+sway, liqRX, liqRY, 0, Math.PI, 0)
-    const lg = ctx.createLinearGradient(cx-liqRX, liqY, cx+liqRX, liqY+40)
-    lg.addColorStop(0, `rgba(100,210,205,${liqAlpha*0.72})`)
-    lg.addColorStop(1, `rgba(55,165,158,${liqAlpha*0.88})`)
-    ctx.fillStyle = lg; ctx.fill()
-    // Surface ellipse
-    ctx.beginPath()
-    ctx.ellipse(cx, liqY+sway, liqRX, liqRY, 0, 0, Math.PI*2)
-    ctx.fillStyle = `rgba(140,225,220,${liqAlpha*0.55})`; ctx.fill()
-    // Surface highlight blob
-    ctx.beginPath()
-    ctx.ellipse(cx-liqRX*0.2, liqY-liqRY*0.3+sway, liqRX*0.48, liqRY*0.38, 0, 0, Math.PI*2)
-    ctx.fillStyle = `rgba(255,255,255,${liqAlpha*0.7})`; ctx.fill()
-    ctx.restore()
-  }
-
-  // ── Glass bowl fill (very subtle glass tint) ──
   ctx.save()
-  ctx.beginPath()
-  ctx.moveTo(cx, tipY)
-  ctx.bezierCurveTo(cx+3, tipY-10, cx+rimRX, rimY+22, cx+rimRX, rimY)
-  ctx.lineTo(cx-rimRX, rimY)
-  ctx.bezierCurveTo(cx-rimRX, rimY+22, cx-3, tipY-10, cx, tipY)
+  glassPath(ctx, cx)
   ctx.clip()
-  const gt = ctx.createLinearGradient(cx-rimRX, rimY, cx+rimRX, rimY)
-  gt.addColorStop(0,'rgba(160,235,230,0.12)')
-  gt.addColorStop(0.5,'rgba(160,235,230,0.02)')
-  gt.addColorStop(1,'rgba(160,235,230,0.12)')
-  ctx.fillStyle = gt
-  ctx.fillRect(cx-rimRX, rimY, rimRX*2, tipY-rimY)
-  // Left glass reflection stripe
+
+  // Full bowl fill with gold liquid
+  const lg = ctx.createLinearGradient(cx-wideRX, liqSurfY, cx+wideRX, neckY)
+  lg.addColorStop(0, 'rgba(240,215,65,0.92)')
+  lg.addColorStop(0.5,'rgba(215,178,40,0.96)')
+  lg.addColorStop(1, 'rgba(175,138,22,0.98)')
+  ctx.fillStyle = lg
   ctx.beginPath()
-  ctx.moveTo(cx-rimRX+9, rimY+6)
-  ctx.bezierCurveTo(cx-rimRX+14, rimY+22, cx-rimRX+8, tipY-28, cx-14, tipY-8)
-  ctx.strokeStyle = 'rgba(255,255,255,0.32)'
-  ctx.lineWidth = 7
-  ctx.lineCap = 'round'
-  ctx.stroke()
-  ctx.restore()
-
-  // ── Glass walls ──
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-  for (const side of [-1,1]) {
-    ctx.beginPath()
-    ctx.moveTo(cx+side*rimRX, rimY)
-    ctx.bezierCurveTo(cx+side*rimRX, rimY+22, cx+side*3, tipY-10, cx, tipY)
-    ctx.strokeStyle = 'rgba(230,250,250,0.88)'
-    ctx.lineWidth = 2.2; ctx.stroke()
-  }
-
-  // ── Rim ──
-  // Back half (darker, recedes)
-  ctx.beginPath()
-  ctx.ellipse(cx, rimY, rimRX, rimRY, 0, 0, Math.PI)
-  ctx.strokeStyle = 'rgba(165,130,25,0.55)'; ctx.lineWidth = 3.5; ctx.stroke()
-  // Front half (gold)
-  ctx.beginPath()
-  ctx.ellipse(cx, rimY, rimRX, rimRY, 0, Math.PI, Math.PI*2)
-  ctx.strokeStyle = '#c9a84c'; ctx.lineWidth = 5; ctx.stroke()
-  // Highlight stripe on rim
-  ctx.beginPath()
-  ctx.ellipse(cx-rimRX*0.22, rimY-rimRY*0.52, rimRX*0.32, rimRY*0.45, 0.1, 0, Math.PI*2)
-  ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.fill()
-
-  // ── Stem ──
-  ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(cx, stemBot)
-  ctx.strokeStyle = 'rgba(210,240,238,0.72)'; ctx.lineWidth = 2.2; ctx.stroke()
-
-  // ── Base ──
-  ctx.beginPath(); ctx.ellipse(cx, stemBot, baseRX, baseRY, 0, 0, Math.PI*2)
-  ctx.strokeStyle = 'rgba(175,228,224,0.65)'; ctx.lineWidth = 1.8; ctx.stroke()
-  const bfg = ctx.createRadialGradient(cx-baseRX*0.3, stemBot-baseRY*0.5, 0, cx, stemBot, baseRX)
-  bfg.addColorStop(0,'rgba(160,225,220,0.22)'); bfg.addColorStop(1,'rgba(80,170,165,0.06)')
-  ctx.fillStyle = bfg; ctx.fill()
-}
-
-// ── Draw the liquid blob splash ───────────────────────────────────────────────
-function drawBlob(ctx: CanvasRenderingContext2D, cx: number, cy: number, sc: number) {
-  if (sc <= 0) return
-  ctx.save()
-  ctx.translate(cx, cy)
-  ctx.scale(sc, sc)
-
-  // Main blob path (organic liquid splash shape, inspired by the second reference)
-  ctx.beginPath()
-  ctx.moveTo(0,-68)
-  ctx.bezierCurveTo(18,-85, 55,-72, 70,-48)   // upper right finger
-  ctx.bezierCurveTo(88,-28, 95,5, 82,32)
-  ctx.bezierCurveTo(68,58, 35,62, 12,72)       // lower right
-  ctx.bezierCurveTo(-8,82, -28,72, -32,52)
-  ctx.bezierCurveTo(-38,30, -22,8, -38,-8)
-  ctx.bezierCurveTo(-52,-22, -82,-12, -78,-44) // left finger
-  ctx.bezierCurveTo(-74,-72, -22,-80, 0,-68)
+  // Liquid surface wave (bezier so it curves naturally)
+  ctx.moveTo(cx-60+swayX, liqSurfY+swayY)
+  ctx.bezierCurveTo(cx-20+swayX, liqSurfY-6+swayY, cx+20+swayX, liqSurfY+4+swayY, cx+60+swayX, liqSurfY+swayY)
+  // Down the right wall to neck
+  ctx.bezierCurveTo(cx+wideRX,wideY+44, cx+neckRX+7,neckY-16, cx+neckRX,neckY)
+  ctx.lineTo(cx-neckRX, neckY)
+  ctx.bezierCurveTo(cx-neckRX-7,neckY-16, cx-wideRX,wideY+44, cx-wideRX,liqSurfY+20)
   ctx.closePath()
+  ctx.fill()
 
-  const bg = ctx.createRadialGradient(-10,-20,5, 0,0, 88)
-  bg.addColorStop(0,'rgba(215,178,55,0.92)')
-  bg.addColorStop(0.55,'rgba(200,162,45,0.82)')
-  bg.addColorStop(1,'rgba(168,132,28,0.68)')
-  ctx.fillStyle = bg; ctx.fill()
-
-  // Inner highlight
+  // Liquid inner glow / highlight blob
   ctx.beginPath()
-  ctx.ellipse(-18,-28, 26,14,-0.4, 0, Math.PI*2)
-  ctx.fillStyle = 'rgba(255,248,190,0.5)'; ctx.fill()
+  ctx.ellipse(cx+swayX*0.5-8, liqSurfY+22+swayY*0.5, 24, 16, -0.3, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(255,248,160,0.38)'; ctx.fill()
+  // Second small highlight
+  ctx.beginPath()
+  ctx.ellipse(cx+swayX*0.3+10, liqSurfY+40+swayY*0.3, 12, 8, 0.2, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(255,248,180,0.25)'; ctx.fill()
 
-  // Satellite drops
-  for (const [sx,sy,sr] of [[88,-42,8],[108,-4,5],[65,-80,6],[-88,-35,7],[22,82,5],[-30,78,6],[100,18,4],[42,-88,5],[-55,55,4]] as [number,number,number][]) {
-    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2)
-    ctx.fillStyle = 'rgba(205,165,42,0.82)'; ctx.fill()
-    // Tiny highlight
-    ctx.beginPath(); ctx.arc(sx-sr*0.3,sy-sr*0.35,sr*0.3,0,Math.PI*2)
-    ctx.fillStyle = 'rgba(255,245,180,0.55)'; ctx.fill()
-  }
+  // ── Empty glass region above liquid ──
+  ctx.fillStyle = 'rgba(175,220,218,0.18)'
+  ctx.fillRect(cx-wideRX-2, rimY, (wideRX+2)*2, liqSurfY+swayY - rimY + 2)
+
+  ctx.restore()
+
+  // ── Glass walls (drawn on top so they frame everything) ──
+  ctx.save()
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  // Left wall
+  ctx.beginPath()
+  ctx.moveTo(cx-rimRX, rimY)
+  ctx.bezierCurveTo(cx-rimRX-10,rimY+30, cx-wideRX,wideY-32, cx-wideRX,wideY)
+  ctx.bezierCurveTo(cx-wideRX,wideY+44, cx-neckRX-7,neckY-16, cx-neckRX,neckY)
+  ctx.strokeStyle = 'rgba(195,232,230,0.78)'; ctx.lineWidth = 2.8; ctx.stroke()
+  // Right wall
+  ctx.beginPath()
+  ctx.moveTo(cx+rimRX, rimY)
+  ctx.bezierCurveTo(cx+rimRX+10,rimY+30, cx+wideRX,wideY-32, cx+wideRX,wideY)
+  ctx.bezierCurveTo(cx+wideRX,wideY+44, cx+neckRX+7,neckY-16, cx+neckRX,neckY)
+  ctx.strokeStyle = 'rgba(195,232,230,0.78)'; ctx.lineWidth = 2.8; ctx.stroke()
+
+  // Glass body fill (very faint teal tint on the walls, not the liquid area)
+  glassPath(ctx, cx)
+  ctx.save()
+  ctx.clip()
+  const gt = ctx.createLinearGradient(cx-wideRX, rimY, cx+wideRX, rimY)
+  gt.addColorStop(0,'rgba(150,225,220,0.1)')
+  gt.addColorStop(0.5,'rgba(150,225,220,0.01)')
+  gt.addColorStop(1,'rgba(150,225,220,0.1)')
+  ctx.fillStyle = gt
+  ctx.fillRect(cx-wideRX-2, rimY, (wideRX+2)*2, neckY-rimY)
+  ctx.restore()
+
+  // Left reflection stripe (matches reference style — white streak on bowl)
+  ctx.save()
+  glassPath(ctx, cx)
+  ctx.clip()
+  ctx.beginPath()
+  ctx.moveTo(cx-rimRX+8, rimY+10)
+  ctx.bezierCurveTo(cx-rimRX+12, rimY+40, cx-wideRX+12, wideY-10, cx-wideRX+14, wideY+40)
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 8; ctx.stroke()
+  ctx.restore()
+
+  // Rim opening — thin ellipse to show the glass lip
+  ctx.beginPath()
+  ctx.ellipse(cx, rimY, rimRX, rimRX*0.22, 0, 0, Math.PI*2)
+  ctx.strokeStyle = 'rgba(195,232,230,0.6)'; ctx.lineWidth = 2; ctx.stroke()
+  // Rim highlight
+  ctx.beginPath()
+  ctx.ellipse(cx-rimRX*0.25, rimY-rimRX*0.1, rimRX*0.32, rimRX*0.1, 0, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill()
+
+  // Stem
+  ctx.beginPath(); ctx.moveTo(cx, neckY); ctx.lineTo(cx, stemBot)
+  const sg = ctx.createLinearGradient(cx-4, neckY, cx+4, neckY)
+  sg.addColorStop(0,'rgba(175,228,224,0.5)'); sg.addColorStop(1,'rgba(155,215,210,0.7)')
+  ctx.strokeStyle = 'rgba(190,230,227,0.68)'; ctx.lineWidth = 5; ctx.stroke()
+
+  // Base
+  ctx.beginPath(); ctx.ellipse(cx, stemBot, baseRX, baseRY, 0, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(160,225,220,0.18)'; ctx.fill()
+  ctx.strokeStyle = 'rgba(185,230,227,0.58)'; ctx.lineWidth = 2; ctx.stroke()
+  // Base highlight
+  ctx.beginPath(); ctx.ellipse(cx-baseRX*0.3, stemBot-baseRY*0.4, baseRX*0.4, baseRY*0.5, 0, 0, Math.PI*2)
+  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill()
 
   ctx.restore()
 }
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface Die { orbitAngle: number; spin: number; x: number; y: number; vx: number; vy: number; frozen: boolean }
-interface AnimState {
-  phase: 'idle' | 'throw' | 'air'
-  t: number
-  glassAngle: number
-  blobScale: number
-  liqAlpha: number
-  dice: [Die, Die]
-}
-
-interface Props { onClick: () => void; disabled?: boolean; spinning?: boolean }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+interface Props { onClick: () => void; disabled?: boolean; spinning?: boolean }
+
 export default function LuckyMartiniButton({ onClick, disabled, spinning }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const liqPhase = useRef(0)
-  const prevSpinning = useRef(false)
+  const phase = useRef(0)
+  const dieAngle = useRef(0)
+  const dieOrbit = useRef(0)
   const frameRef = useRef(0)
-
-  const st = useRef<AnimState>({
-    phase: 'idle', t: 0, glassAngle: 0, blobScale: 0, liqAlpha: 1,
-    dice: [
-      { orbitAngle: 0,       spin: 0,   x: 0, y: 0, vx: -2.2, vy: -4.8, frozen: false },
-      { orbitAngle: Math.PI, spin: 0.8, x: 0, y: 0, vx:  2.6, vy: -5.6, frozen: false },
-    ],
-  })
-
-  useEffect(() => {
-    const was = prevSpinning.current
-    prevSpinning.current = !!spinning
-    if (spinning && !was) {
-      const s = st.current
-      s.phase = 'throw'; s.t = 0; s.blobScale = 0; s.liqAlpha = 1
-      s.dice[0].frozen = false; s.dice[1].frozen = false
-    }
-    if (!spinning && was) {
-      const s = st.current
-      s.phase = 'idle'; s.glassAngle = 0; s.blobScale = 0; s.liqAlpha = 1
-      s.dice[0].orbitAngle = 0; s.dice[1].orbitAngle = Math.PI
-    }
-  }, [spinning])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
     const W = canvas.width, H = canvas.height
+    const CX = W / 2
 
-    // Glass pivot coords (center of glass, near stem-bowl junction)
-    const GCX = W / 2
-    const GPIVOT_Y = 168
-
-    // Idle orbit of dice inside glass (ellipse matching liquid surface perspective)
-    const ORBIT_CX = GCX, ORBIT_CY = GPIVOT_Y - 62
-    const ORBIT_RX = 22, ORBIT_RY = 7
-
-    // Where blob renders in the air phase (upper-right area)
-    const BLOB_CX = W * 0.66, BLOB_CY = H * 0.3
-
-    // Where dice float in air phase
-    const AIR_POS: [number,number][] = [[W*0.55, H*0.14], [W*0.78, H*0.2]]
+    // Die orbits inside the liquid region of the wine glass
+    const ORBIT_CX = CX, ORBIT_CY = 148, ORBIT_RX = 22, ORBIT_RY = 10
 
     function tick() {
-      const s = st.current
-      liqPhase.current += 0.04
+      // Slow everything down — gentle gif-like pace
+      phase.current    += 0.022
+      dieOrbit.current += 0.016
+      dieAngle.current += 0.018
+
       ctx.clearRect(0, 0, W, H)
 
-      if (s.phase === 'idle') {
-        for (const [i,d] of s.dice.entries()) {
-          d.orbitAngle += 0.016
-          const a = d.orbitAngle + i * Math.PI
-          d.x = ORBIT_CX + Math.cos(a) * ORBIT_RX
-          d.y = ORBIT_CY + Math.sin(a) * ORBIT_RY
-          d.spin += 0.012
-        }
-        s.glassAngle = 0
-        s.blobScale = 0
-        s.liqAlpha = 1
+      // Draw the glass
+      drawWineGlass(ctx, CX, phase.current)
 
-        drawGlass(ctx, GCX, GPIVOT_Y, 1, liqPhase.current)
-        // Back die first (behind glass center)
-        const order = [0,1].sort((a,b) => s.dice[a].y - s.dice[b].y)
-        for (const i of order)
-          drawFlatDie(ctx, s.dice[i].x, s.dice[i].y, 11, s.dice[i].spin,
-            i===0 ? '#3d7a76' : '#8b6914', i===0 ? 3 : 5)
+      // Die swirls inside the liquid — clip to glass bowl so it stays inside
+      const dieX = ORBIT_CX + Math.cos(dieOrbit.current) * ORBIT_RX
+      const dieY = ORBIT_CY + Math.sin(dieOrbit.current) * ORBIT_RY
+      ctx.save()
+      glassPath(ctx, CX)
+      ctx.clip()
+      drawFlatDie(ctx, dieX, dieY, 12, dieAngle.current)
+      ctx.restore()
 
-      } else if (s.phase === 'throw') {
-        s.t += 1/60
-        const tN = Math.min(1, s.t / 0.72)
-        // ease in-out
-        const ease = tN < 0.5 ? 2*tN*tN : 1-Math.pow(-2*tN+2,2)/2
-
-        // Glass tilts clockwise (opening swings to upper-right to "throw")
-        const TARGET_ANGLE = 0.9  // ~52°
-        s.glassAngle = ease * TARGET_ANGLE
-
-        // Liquid drains as glass tilts past ~30%
-        s.liqAlpha = Math.max(0, 1 - (tN - 0.25) * 3.5)
-
-        // Dice fly from orbit → air positions after ~40% tilt
-        if (tN > 0.38) {
-          const dT = Math.min(1, (tN-0.38)/0.62)
-          for (const [,d] of s.dice.entries()) {
-            if (!d.frozen) {
-              d.x += d.vx; d.y += d.vy; d.vy += 0.14
-              d.spin += 0.08
-            }
-          }
-          // Check if they've reached target
-          if (tN >= 1) {
-            for (const [i,d] of s.dice.entries()) {
-              d.x = AIR_POS[i][0]; d.y = AIR_POS[i][1]; d.frozen = true
-            }
-          }
-          void dT
-        } else {
-          // Still orbiting
-          for (const [i,d] of s.dice.entries()) {
-            d.orbitAngle += 0.016
-            const a = d.orbitAngle + i * Math.PI
-            d.x = ORBIT_CX + Math.cos(a) * ORBIT_RX
-            d.y = ORBIT_CY + Math.sin(a) * ORBIT_RY
-            d.spin += 0.012
-          }
-        }
-
-        // Blob grows in as liquid pours out
-        s.blobScale = Math.max(0, (tN - 0.3) / 0.7)
-
-        // Draw tilted glass
-        ctx.save()
-        ctx.translate(GCX, GPIVOT_Y)
-        ctx.rotate(s.glassAngle)
-        ctx.translate(-GCX, -GPIVOT_Y)
-        drawGlass(ctx, GCX, GPIVOT_Y, s.liqAlpha, liqPhase.current)
-        ctx.restore()
-
-        // Blob
-        drawBlob(ctx, BLOB_CX, BLOB_CY, s.blobScale)
-
-        // Dice
-        for (const [i,d] of s.dice.entries())
-          drawFlatDie(ctx, d.x, d.y, 11, d.spin,
-            i===0 ? '#3d7a76' : '#8b6914', i===0 ? 3 : 5)
-
-        if (tN >= 1) s.phase = 'air'
-
-      } else { // air
-        s.t += 1/60
-        // Dice bob gently
-        for (const [i,d] of s.dice.entries()) {
-          d.x = AIR_POS[i][0]
-          d.y = AIR_POS[i][1] + Math.sin(s.t * 1.8 + i * 1.3) * 4
-          d.spin += 0.022
-        }
-
-        // Blob fully shown, slight pulse
-        s.blobScale = 1 + Math.sin(s.t * 2.2) * 0.02
-
-        // Glass stays tilted
-        ctx.save()
-        ctx.translate(GCX, GPIVOT_Y)
-        ctx.rotate(0.9)
-        ctx.translate(-GCX, -GPIVOT_Y)
-        drawGlass(ctx, GCX, GPIVOT_Y, 0, liqPhase.current)
-        ctx.restore()
-
-        drawBlob(ctx, BLOB_CX, BLOB_CY, s.blobScale)
-
-        for (const [i,d] of s.dice.entries())
-          drawFlatDie(ctx, d.x, d.y, 11, d.spin,
-            i===0 ? '#3d7a76' : '#8b6914', i===0 ? 3 : 5)
-
-        // Rolling text
-        ctx.font = 'bold 11px system-ui,sans-serif'
+      // "Rolling the Dice" text while thinking
+      if (spinning) {
         ctx.textAlign = 'center'
-        ctx.fillStyle = 'rgba(200,162,45,0.92)'
-        ctx.fillText('Rolling…', W/2, H - 8)
+        ctx.font = 'bold 11px system-ui,sans-serif'
+        ctx.fillStyle = 'rgba(215,178,40,0.92)'
+        ctx.fillText('Rolling the Dice…', CX, H - 8)
       }
 
       frameRef.current = requestAnimationFrame(tick)
@@ -399,7 +226,7 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
 
     frameRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [])
+  }, [spinning])
 
   return (
     <button
@@ -415,7 +242,7 @@ export default function LuckyMartiniButton({ onClick, disabled, spinning }: Prop
       }}
       className="group active:scale-95 transition-transform duration-150"
     >
-      <canvas ref={canvasRef} width={220} height={256} style={{ display: 'block' }} />
+      <canvas ref={canvasRef} width={200} height={290} style={{ display: 'block' }} />
       {!spinning && (
         <span className="mt-0.5 text-xs font-medium tracking-wide text-[var(--teal)] group-hover:text-[var(--cream)] transition-colors duration-200">
           Feeling Lucky?
