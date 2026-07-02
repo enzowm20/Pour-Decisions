@@ -13,7 +13,7 @@ import StatusBadge from "../components/StatusBadge"
 import FallingBottles from "../components/FallingBottles"
 import ConfirmButton from "../components/ConfirmButton"
 import ComboCard from "../components/ComboCard"
-import LuckyMartiniButton from "../components/LuckyMartiniButton"
+import SlotMachineButton from "../components/SlotMachineButton"
 import bombayBottle from "../assets/bombay-bottle.webp"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient } from "../types"
 
@@ -430,7 +430,7 @@ export default function ExperimentLabPage() {
           you press it, with a rough confidence score for how proven the result is.
         </p>
         <div className="mb-4">
-          <LuckyMartiniButton
+          <SlotMachineButton
             onClick={handleRandomCocktail}
             disabled={randomThinking}
             spinning={randomThinking}
