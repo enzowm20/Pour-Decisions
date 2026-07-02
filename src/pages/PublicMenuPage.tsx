@@ -43,6 +43,7 @@ export default function PublicMenuPage() {
     ingredientNames: recipe.ingredientIds.map((id) => byId.get(id)?.name).filter(Boolean) as string[],
     sellPrice: recipe.sellPrice,
     outOfStock: checkRecipe(recipe, ingredients, substitutions).status === "purchase",
+    menuCategory: recipe.menuCategory ?? "core",
   }))
 
   function handleOrder(recipeId: string) {
