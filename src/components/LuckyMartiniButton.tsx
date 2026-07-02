@@ -1,12 +1,10 @@
 import { useEffect, useRef } from "react"
-import gifSrc from "../assets/winegif.gif"
-
-// gifuct-js ships without bundled types
 import * as gifuct from "gifuct-js"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { parseGIF, decompressFrames } = gifuct as any
+import gifSrc from "../assets/winegif.gif"
 
-// ── HSL ↔ RGB ─────────────────────────────────────────────────────────────────
+// ── HSL helpers ───────────────────────────────────────────────────────────────
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   r /= 255; g /= 255; b /= 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
@@ -20,7 +18,6 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   else h = ((r - g) / d + 4) / 6
   return [h * 360, s, l]
 }
-
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   h /= 360
   if (s === 0) { const v = Math.round(l * 255); return [v, v, v] }
@@ -28,30 +25,24 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   const p = 2 * l - q
   const hue2 = (t: number) => {
     if (t < 0) t += 1; if (t > 1) t -= 1
-    if (t < 1/6) return p + (q - p) * 6 * t
-    if (t < 1/2) return q
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
     return p
   }
-  return [Math.round(hue2(h + 1/3) * 255), Math.round(hue2(h) * 255), Math.round(hue2(h - 1/3) * 255)]
+  return [Math.round(hue2(h + 1 / 3) * 255), Math.round(hue2(h) * 255), Math.round(hue2(h - 1 / 3) * 255)]
 }
 
-// ── Per-frame pixel recoloring ────────────────────────────────────────────────
-// 1. Remove dark maroon background → transparent
-// 2. Shift all remaining hues +210° (red→sapphire blue, pink/mauve→teal-blue)
-function recolorPixels(data: Uint8ClampedArray) {
+// ── Pixel recolour on the already-scaled small frame ─────────────────────────
+// Remove dark maroon bg → transparent; shift remaining hues +210° (red→sapphire)
+function recolor(data: Uint8ClampedArray) {
   for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3]
-    if (a < 10) continue
-
-    // Background: dark, red-dominant, low saturation overall
+    const r = data[i], g = data[i + 1], b = data[i + 2]
+    if (data[i + 3] < 10) continue
+    // Background: dark + red-dominant
     const lum = r * 0.299 + g * 0.587 + b * 0.114
-    if (lum < 72 && r >= g && r >= b) {
-      data[i + 3] = 0
-      continue
-    }
-
-    // Hue-shift remaining pixels +210°
+    if (lum < 68 && r > g && r > b) { data[i + 3] = 0; continue }
+    // Hue shift +210° → sapphire blue palette
     const [h, s, l] = rgbToHsl(r, g, b)
     const [nr, ng, nb] = hslToRgb((h + 210) % 360, s, l)
     data[i] = nr; data[i + 1] = ng; data[i + 2] = nb
@@ -59,91 +50,96 @@ function recolorPixels(data: Uint8ClampedArray) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-interface GifFrame { imageData: ImageData; delay: number }
 interface Props { onClick: () => void; disabled?: boolean; spinning?: boolean }
 
-const DISPLAY_W = 220  // render at this width, maintain aspect ratio
+const DISPLAY_W = 220
 
 export default function LuckyMartiniButton({ onClick, disabled, spinning }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const offscreenRef = useRef<HTMLCanvasElement | null>(null)
-  const framesRef = useRef<GifFrame[]>([])
-  const animRef = useRef({ idx: 0, lastTime: 0 })
+  const framesRef = useRef<Array<{ id: ImageData; delay: number }>>([])
+  const animRef = useRef({ idx: 0, last: 0 })
   const rafRef = useRef(0)
-  const gifDimsRef = useRef({ w: 1, h: 1 })
+  const dimsRef = useRef({ w: DISPLAY_W, h: DISPLAY_W })
 
-  // Load + decode GIF once on mount
+  // Decode GIF once, scale down, recolour each frame
   useEffect(() => {
     fetch(gifSrc)
       .then(r => r.arrayBuffer())
       .then(buf => {
         const gif = parseGIF(buf)
-        const rawFrames = decompressFrames(gif, true)
+        const rawFrames: unknown[] = decompressFrames(gif, true)
 
-        const GW: number = gif.lsd.width
-        const GH: number = gif.lsd.height
-        gifDimsRef.current = { w: GW, h: GH }
+        const GW: number = (gif as { lsd: { width: number; height: number } }).lsd.width
+        const GH: number = (gif as { lsd: { width: number; height: number } }).lsd.height
+        const DH = Math.round(GH * DISPLAY_W / GW)
+        dimsRef.current = { w: DISPLAY_W, h: DH }
 
-        // Offscreen canvas for compositing
-        const off = document.createElement("canvas")
-        off.width = GW; off.height = GH
-        offscreenRef.current = off
+        // Offscreen canvases — full size for compositing, small for storage
+        const full = Object.assign(document.createElement("canvas"), { width: GW, height: GH })
+        const fullCtx = full.getContext("2d")!
+        const small = Object.assign(document.createElement("canvas"), { width: DISPLAY_W, height: DH })
+        const smallCtx = small.getContext("2d")!
 
-        framesRef.current = rawFrames.map((f: { patch: Uint8ClampedArray; dims: { width: number; height: number }; delay: number }) => {
-          // Build full-size ImageData from patch
-          const id = new ImageData(new Uint8ClampedArray(f.patch), GW, GH)
-          recolorPixels(id.data)
-          return {
-            imageData: id,
-            // delay is in centiseconds → ms, multiply by 3 to slow to ~1/3 speed
-            delay: Math.max(50, (f.delay || 8) * 10 * 3),
+        const processed: Array<{ id: ImageData; delay: number }> = []
+
+        for (const raw of rawFrames) {
+          const f = raw as { patch: ArrayLike<number>; delay: number }
+          try {
+            // Write full-size frame
+            const patch = f.patch instanceof Uint8ClampedArray
+              ? f.patch
+              : new Uint8ClampedArray(f.patch as ArrayLike<number>)
+            fullCtx.putImageData(new ImageData(patch, GW, GH), 0, 0)
+
+            // Scale down to display size
+            smallCtx.clearRect(0, 0, DISPLAY_W, DH)
+            smallCtx.drawImage(full, 0, 0, DISPLAY_W, DH)
+
+            // Get small pixels, recolour in-place
+            const id = smallCtx.getImageData(0, 0, DISPLAY_W, DH)
+            recolor(id.data)
+
+            processed.push({ id, delay: Math.max(60, (f.delay || 8) * 10 * 3) })
+          } catch {
+            // skip bad frame
           }
-        })
-
-        // Resize visible canvas now we know the GIF's aspect ratio
-        if (canvasRef.current) {
-          const scale = DISPLAY_W / GW
-          canvasRef.current.width = DISPLAY_W
-          canvasRef.current.height = Math.round(GH * scale)
         }
+
+        framesRef.current = processed
+
+        // Resize visible canvas to match aspect ratio
+        const canvas = canvasRef.current
+        if (canvas) { canvas.width = DISPLAY_W; canvas.height = DH }
       })
+      .catch(console.error)
   }, [])
 
-  // Animation loop — restarts when spinning changes so text renders correctly
+  // Animation loop — rebuilds when spinning changes so text renders immediately
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")!
-
-    const W = canvas.width, H = canvas.height
 
     function tick(now: number) {
       const frames = framesRef.current
       if (frames.length > 0) {
         const st = animRef.current
         const frame = frames[st.idx]
-
-        if (now - st.lastTime >= frame.delay) {
-          const cw = canvasRef.current?.width ?? W
-          const ch = canvasRef.current?.height ?? H
-          ctx.clearRect(0, 0, cw, ch)
-
-          // Draw frame scaled to display size
-          const off = offscreenRef.current!
-          const offCtx = off.getContext("2d")!
-          offCtx.putImageData(frame.imageData, 0, 0)
-          ctx.drawImage(off, 0, 0, cw, ch)
-
-          // "Rolling the Dice…" overlay when thinking
+        if (now - st.last >= frame.delay) {
+          // Sync canvas size in case it was resized after load
+          const { w, h } = dimsRef.current
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w; canvas.height = h
+          }
+          ctx.putImageData(frame.id, 0, 0)
           if (spinning) {
             ctx.textAlign = "center"
             ctx.font = "bold 11px system-ui,sans-serif"
-            ctx.fillStyle = "rgba(100,180,230,0.92)"
-            ctx.fillText("Rolling the Dice…", cw / 2, ch - 10)
+            ctx.fillStyle = "rgba(100,185,235,0.92)"
+            ctx.fillText("Rolling the Dice…", w / 2, h - 10)
           }
-
           st.idx = (st.idx + 1) % frames.length
-          st.lastTime = now
+          st.last = now
         }
       }
       rafRef.current = requestAnimationFrame(tick)
