@@ -5,6 +5,7 @@ import { checkRecipe } from "../lib/recipeCheck"
 import DrainingBackground from "../components/DrainingBackground"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
+import MenuSlotMachine from "../components/MenuSlotMachine"
 import logoLimoncello from "../assets/logo-limoncello.png"
 import limoncelloBottle from "../assets/limoncello-bottle.webp"
 import type { MenuCategory } from "../types"
@@ -34,6 +35,16 @@ export default function PublicMenuPage() {
     experiments.filter((e) => e.photos.length > 0).map((e) => [e.name.toLowerCase(), e.photos[0]]),
   )
 
+  // All menu cocktails across every tab, resolved for the slot machine
+  const slotCocktails = byName(allMenuRecipes).map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    photo: recipe.photo ?? photoByName.get(recipe.name.toLowerCase()),
+    ingredientNames: recipe.ingredientIds.map((id) => byId.get(id)?.name).filter(Boolean) as string[],
+    sellPrice: recipe.sellPrice,
+    outOfStock: checkRecipe(recipe, ingredients, substitutions).status === "purchase",
+  }))
+
   function handleOrder(recipeId: string) {
     setOrderedId(recipeId)
   }
@@ -43,9 +54,10 @@ export default function PublicMenuPage() {
       <DrainingBackground />
       <FallingBottles bottleImg={limoncelloBottle} />
 
-      <span className="pointer-events-none fixed bottom-2 left-2 z-20 text-[10px] text-[var(--cream-dim)]/70">
-        Designed by Lorenzo Montenegro
-      </span>
+      <div className="pointer-events-none fixed bottom-3 left-3 z-20 leading-snug">
+        <p className="text-[11px] font-medium text-[var(--cream-dim)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">Designed by</p>
+        <p className="text-[13px] font-semibold text-[var(--cream)] drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">Lorenzo Montenegro</p>
+      </div>
 
       {/* Matches the staff header's format — logo on a cream strip, just larger,
           since this is the only thing in this page's header. */}
@@ -56,6 +68,16 @@ export default function PublicMenuPage() {
       </header>
 
       <main className="relative mx-auto max-w-4xl px-4 py-6">
+        {slotCocktails.length > 0 && (
+          <RevealOnScroll className="mb-4">
+            <MenuSlotMachine
+              cocktails={slotCocktails}
+              onOrder={handleOrder}
+              orderedId={orderedId}
+            />
+          </RevealOnScroll>
+        )}
+
         <RevealOnScroll className="rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface)]/70 p-4 sm:p-6">
           <h1 className="mb-1 text-center text-lg font-medium">Our Menu</h1>
           <p className="mb-6 text-center text-sm text-[var(--cream-dim)]">
