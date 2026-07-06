@@ -22,7 +22,12 @@ const BOTTLES = [
 const LOOP_HEIGHT_VH  = 120
 const ASPECT          = 1280 / 1024
 const SIZE_MULTIPLIER = 2.5
-const BLEND_DURATION_MS = 1400
+const BLEND_DURATION_MS  = 1400
+// Small threshold so wantFloat only flips after the user has genuinely
+// stopped — without this it toggles every other frame during smooth scrolling
+// (frames where scrollY didn't change this exact tick), which causes
+// dirFlip to fire constantly and the offsets to be recaptured mid-transition.
+const IDLE_THRESHOLD_MS  = 180
 
 const PHI  = 1.6180339887
 const PHI2 = PHI * PHI
@@ -31,12 +36,12 @@ const PHI3 = PHI2 * PHI
 const FLOAT_CONFIG = BOTTLES.map((_b, i) => {
   const basePeriod = 18 + (i * PHI * 2.3) % 14
   return {
-    xFreq1: 1 / basePeriod,           xAmp1: 18 + (i * 7.3) % 22,
-    yFreq1: 1 / (basePeriod * PHI),   yAmp1: 0.05,
-    xFreq2: PHI2 / basePeriod,        xAmp2: 8 + (i * 4.1) % 10,
-    yFreq2: PHI3 / (basePeriod * PHI),yAmp2: 0.025,
-    xFreq3: PHI3 / (basePeriod * 0.7),xAmp3: 3 + (i * 1.7) % 5,
-    yFreq3: PHI2 / (basePeriod * 1.3),yAmp3: 0.01,
+    xFreq1: 1 / basePeriod,            xAmp1: 28 + (i * 7.3) % 30,
+    yFreq1: 1 / (basePeriod * PHI),    yAmp1: 0.16 + (i * 0.007) % 0.06,
+    xFreq2: PHI2 / basePeriod,         xAmp2: 12 + (i * 4.1) % 14,
+    yFreq2: PHI3 / (basePeriod * PHI), yAmp2: 0.07 + (i * 0.004) % 0.04,
+    xFreq3: PHI3 / (basePeriod * 0.7), xAmp3: 5 + (i * 1.7) % 7,
+    yFreq3: PHI2 / (basePeriod * 1.3), yAmp3: 0.03 + (i * 0.002) % 0.02,
     rotFreq1: 1 / (basePeriod * 1.5), rotFreq2: PHI / (basePeriod * 2.2),
     rotAmp: 6 + (i * 2.3) % 9,
   }
@@ -118,7 +123,7 @@ export default function FallingBottles({ bottleImg }: Props) {
       const sy = window.scrollY
       if (sy !== lastScrollY) { lastScrollY = sy; lastScrollTime = timestamp }
 
-      const wantFloat = (timestamp - lastScrollTime) > 0
+      const wantFloat = (timestamp - lastScrollTime) > IDLE_THRESHOLD_MS
 
       if (wantFloat) floatBlend = Math.min(1, floatBlend + blendRate * dt / 1000)
       else           floatBlend = Math.max(0, floatBlend - blendRate * dt / 1000)
