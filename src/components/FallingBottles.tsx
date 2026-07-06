@@ -37,7 +37,7 @@ const PHI3 = PHI2 * PHI      // 4.236…
 // and which harmonic multipliers are used for X vs Y. This means the spatial
 // path each bottle traces is a slowly-precessing Lissajous figure — it looks
 // similar on successive passes but never lands exactly the same way twice.
-const FLOAT_CONFIG = BOTTLES.map((b, i) => {
+const FLOAT_CONFIG = BOTTLES.map((_b, i) => {
   // Spread base periods between ~18s and ~32s so bottles visibly drift at
   // different rates — slow enough to feel like suspension in liquid.
   const basePeriod = 18 + (i * PHI * 2.3) % 14  // seconds
