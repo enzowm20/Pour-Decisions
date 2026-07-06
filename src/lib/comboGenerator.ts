@@ -242,9 +242,21 @@ export function buildCombos(
         if (cat === "sweetener" && used >= 1) continue
 
         // ── fruit: must align with anchor spirit ─────────────────────
+        // Citrus fruits (lemon, lime, grapefruit) share the citrus slot —
+        // if a citrus ingredient is already in the combo, skip them, and
+        // if one of them was added first, block citrus category too.
         if (cat === "fruit") {
           if (!fruitAlignsWithSpirit(c, anchor)) continue
           if (used >= 1) continue
+          const isCitrusFruit = ["lemon", "lime", "grapefruit"].some((k) => c.name.toLowerCase().includes(k))
+          if (isCitrusFruit && (bySlot.citrus ?? []).length > 0) continue
+        }
+
+        if (cat === "citrus") {
+          const citrusFruitPresent = (bySlot.fruit ?? []).some((f) =>
+            ["lemon", "lime", "grapefruit"].some((k) => f.name.toLowerCase().includes(k))
+          )
+          if (citrusFruitPresent) continue
         }
 
         // ── top-ups: 1 by default; 2nd only if sparkling wine + mixer ─
