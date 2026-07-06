@@ -22,32 +22,32 @@ const BOTTLES = [
 const LOOP_HEIGHT_VH  = 120
 const ASPECT          = 1280 / 1024
 const SIZE_MULTIPLIER = 2.5
-const BLEND_DURATION_MS  = 1400
-// Small threshold so wantFloat only flips after the user has genuinely
-// stopped — without this it toggles every other frame during smooth scrolling
-// (frames where scrollY didn't change this exact tick), which causes
-// dirFlip to fire constantly and the offsets to be recaptured mid-transition.
-const IDLE_THRESHOLD_MS  = 180
+// Blend duration: how long the scroll↔float crossfade takes
+const BLEND_DURATION_MS = 1400
+// How long without scroll input before idle float kicks in
+const IDLE_THRESHOLD_MS = 180
 
 const PHI  = 1.6180339887
 const PHI2 = PHI * PHI
 const PHI3 = PHI2 * PHI
 
 const FLOAT_CONFIG = BOTTLES.map((_b, i) => {
-  const basePeriod = 18 + (i * PHI * 2.3) % 14
+  const base = 18 + (i * PHI * 2.3) % 14  // period in seconds per bottle
   return {
-    xFreq1: 1 / basePeriod,            xAmp1: 28 + (i * 7.3) % 30,
-    yFreq1: 1 / (basePeriod * PHI),    yAmp1: 0.16 + (i * 0.007) % 0.06,
-    xFreq2: PHI2 / basePeriod,         xAmp2: 12 + (i * 4.1) % 14,
-    yFreq2: PHI3 / (basePeriod * PHI), yAmp2: 0.07 + (i * 0.004) % 0.04,
-    xFreq3: PHI3 / (basePeriod * 0.7), xAmp3: 5 + (i * 1.7) % 7,
-    yFreq3: PHI2 / (basePeriod * 1.3), yAmp3: 0.03 + (i * 0.002) % 0.02,
-    rotFreq1: 1 / (basePeriod * 1.5), rotFreq2: PHI / (basePeriod * 2.2),
-    rotAmp: 6 + (i * 2.3) % 9,
+    xFreq1: 1 / base,             xAmp1: 30 + (i * 7.3) % 30,
+    xFreq2: PHI2 / base,          xAmp2: 14 + (i * 4.1) % 14,
+    xFreq3: PHI3 / (base * 0.7),  xAmp3: 6  + (i * 1.7) % 7,
+    // Y amplitudes in viewport-height fractions — large enough to scatter
+    // bottles across the full screen, not just hover in a band
+    yFreq1: 1 / (base * PHI),             yAmp1: 0.18 + (i * 0.007) % 0.07,
+    yFreq2: PHI3 / (base * PHI),          yAmp2: 0.09 + (i * 0.004) % 0.04,
+    yFreq3: PHI2 / (base * 1.3),          yAmp3: 0.04 + (i * 0.002) % 0.02,
+    rotFreq1: 1 / (base * 1.5),  rotFreq2: PHI / (base * 2.2),
+    rotAmp: 7 + (i * 2.3) % 9,
   }
 })
 
-function smoothstep(t: number): number {
+function smoothstep(t: number) {
   const c = Math.min(1, Math.max(0, t))
   return c * c * (3 - 2 * c)
 }
@@ -55,128 +55,124 @@ function smoothstep(t: number): number {
 interface Props { bottleImg: string | string[] }
 
 export default function FallingBottles({ bottleImg }: Props) {
-  const location = useLocation()
+  const location   = useLocation()
   const reducedMotion = usePrefersReducedMotion()
-  const images = Array.isArray(bottleImg) ? bottleImg : [bottleImg]
+  const images     = Array.isArray(bottleImg) ? bottleImg : [bottleImg]
   const bottleRefs = useRef<(HTMLImageElement | null)[]>([])
 
   useEffect(() => {
     if (reducedMotion) return
 
     let raf: number
-    let prevTimestamp  = performance.now()
-    // floatTime ALWAYS advances so the float animation is mid-cycle at the
-    // moment the user first goes idle — prevents the "snap to homeY" start.
-    let floatTime      = 0
-    let lastScrollTime = performance.now()
-    let lastScrollY    = window.scrollY
+    let prev  = performance.now()
+    let floatTime   = 0
+    let lastScrollY = window.scrollY
+    let lastScrollT = performance.now()
+    let floatBlend  = 0
+    const blendRate = 1 / (BLEND_DURATION_MS / 1000)
 
-    // Blend accumulator: 0 = fully scroll-driven, 1 = fully floating.
-    let floatBlend   = 0
-    const blendRate  = 1 / (BLEND_DURATION_MS / 1000)
-    let prevWantFloat = false
+    // Per-bottle stored position — the actual rendered X/Y/rot from the
+    // previous frame. Lerping toward the target FROM this value (rather than
+    // from a computed anchor) is what prevents snapping: the stored position
+    // carries continuity automatically across every direction change.
+    const cur = BOTTLES.map((b) => {
+      const h    = b.size * SIZE_MULTIPLIER * ASPECT
+      const loop = (LOOP_HEIGHT_VH / 100) * (window.innerHeight || 800)
+      return {
+        x:   0,
+        y:   (b.loopFraction * loop) % loop - h,
+        rot: 0,
+      }
+    })
 
-    // Per-bottle continuity offsets captured each time the blend direction
-    // reverses. Two sets: one for each direction.
-    //   fwdOffset: captured when SCROLL→FLOAT starts (blend at 0)
-    //     applied as:  floatPos + fwdOffset * (1 - blend)
-    //   bwdOffset: captured when FLOAT→SCROLL starts (blend somewhere > 0)
-    //     applied as:  scrollPos + bwdOffset * blend
-    // This ensures the transition always starts from the bottle's current
-    // rendered position rather than snapping to homeY or any stale position.
-    const fwdOffset = BOTTLES.map(() => ({ x: 0, y: 0, rot: 0 }))
-    const bwdOffset = BOTTLES.map(() => ({ x: 0, y: 0, rot: 0 }))
-
-    function scrollPos(b: typeof BOTTLES[0], sy: number, loopPx: number) {
-      const height = b.size * SIZE_MULTIPLIER * ASPECT
-      const fall   = sy * b.fallSpeed + b.loopFraction * loopPx
-      const y      = (((fall % loopPx) + loopPx) % loopPx) - height
-      const x      = Math.sin(sy / b.wobblePeriod + b.phase) * b.wobbleAmp
-      const rot    = (sy * b.spinSpeed + b.phase * 40) % 360
-      return { x, y, rot }
+    function scrollTarget(b: typeof BOTTLES[0], sy: number, loopPx: number) {
+      const h    = b.size * SIZE_MULTIPLIER * ASPECT
+      const fall = sy * b.fallSpeed + b.loopFraction * loopPx
+      return {
+        x:   Math.sin(sy / b.wobblePeriod + b.phase) * b.wobbleAmp,
+        y:   (((fall % loopPx) + loopPx) % loopPx) - h,
+        rot: (sy * b.spinSpeed + b.phase * 40) % 360,
+      }
     }
 
-    function floatPos(b: typeof BOTTLES[0], fc: typeof FLOAT_CONFIG[0], t: number) {
-      const height = b.size * SIZE_MULTIPLIER * ASPECT
-      const homeY  = b.loopFraction * window.innerHeight - height / 2
-      const vhAmp  = window.innerHeight
-      const x =
-        Math.sin(2 * Math.PI * fc.xFreq1 * t + b.phase)        * fc.xAmp1 +
-        Math.sin(2 * Math.PI * fc.xFreq2 * t + b.phase * 1.3)  * fc.xAmp2 +
-        Math.sin(2 * Math.PI * fc.xFreq3 * t + b.phase * 2.1)  * fc.xAmp3
-      const y =
-        homeY +
-        Math.sin(2 * Math.PI * fc.yFreq1 * t + b.phase * 1.7)  * fc.yAmp1 * vhAmp +
-        Math.sin(2 * Math.PI * fc.yFreq2 * t + b.phase * 0.9)  * fc.yAmp2 * vhAmp +
-        Math.sin(2 * Math.PI * fc.yFreq3 * t + b.phase * 2.6)  * fc.yAmp3 * vhAmp
-      const rot =
-        Math.sin(2 * Math.PI * fc.rotFreq1 * t + b.phase)       * fc.rotAmp +
-        Math.sin(2 * Math.PI * fc.rotFreq2 * t + b.phase * 1.4) * fc.rotAmp * 0.4
-      return { x, y, rot }
+    function floatTarget(b: typeof BOTTLES[0], fc: typeof FLOAT_CONFIG[0], t: number) {
+      const h    = b.size * SIZE_MULTIPLIER * ASPECT
+      const homeY = b.loopFraction * window.innerHeight - h / 2
+      const vh   = window.innerHeight
+      return {
+        x:
+          Math.sin(2 * Math.PI * fc.xFreq1 * t + b.phase)        * fc.xAmp1 +
+          Math.sin(2 * Math.PI * fc.xFreq2 * t + b.phase * 1.3)  * fc.xAmp2 +
+          Math.sin(2 * Math.PI * fc.xFreq3 * t + b.phase * 2.1)  * fc.xAmp3,
+        y:
+          homeY +
+          Math.sin(2 * Math.PI * fc.yFreq1 * t + b.phase * 1.7)  * fc.yAmp1 * vh +
+          Math.sin(2 * Math.PI * fc.yFreq2 * t + b.phase * 0.9)  * fc.yAmp2 * vh +
+          Math.sin(2 * Math.PI * fc.yFreq3 * t + b.phase * 2.6)  * fc.yAmp3 * vh,
+        rot:
+          Math.sin(2 * Math.PI * fc.rotFreq1 * t + b.phase)       * fc.rotAmp +
+          Math.sin(2 * Math.PI * fc.rotFreq2 * t + b.phase * 1.4) * fc.rotAmp * 0.4,
+      }
     }
 
-    function tick(timestamp: number) {
-      const dt = Math.min(timestamp - prevTimestamp, 64)
-      prevTimestamp = timestamp
-      floatTime    += dt
+    function tick(ts: number) {
+      const dt = Math.min(ts - prev, 64)
+      prev = ts
+      // floatTime always advances so the float animation is mid-cycle when
+      // idle first kicks in — it never starts from the zero (homeY) position.
+      floatTime += dt
 
       const sy = window.scrollY
-      if (sy !== lastScrollY) { lastScrollY = sy; lastScrollTime = timestamp }
-
-      const wantFloat = (timestamp - lastScrollTime) > IDLE_THRESHOLD_MS
+      if (sy !== lastScrollY) { lastScrollY = sy; lastScrollT = ts }
+      const wantFloat = (ts - lastScrollT) > IDLE_THRESHOLD_MS
 
       if (wantFloat) floatBlend = Math.min(1, floatBlend + blendRate * dt / 1000)
       else           floatBlend = Math.max(0, floatBlend - blendRate * dt / 1000)
 
-      const blend    = smoothstep(floatBlend)
-      const loopPx   = (LOOP_HEIGHT_VH / 100) * window.innerHeight
-      const t        = floatTime / 1000
-      const dirFlip  = wantFloat !== prevWantFloat
-      prevWantFloat  = wantFloat
+      const blend  = smoothstep(floatBlend)
+      const loopPx = (LOOP_HEIGHT_VH / 100) * window.innerHeight
+      const t      = floatTime / 1000
 
       BOTTLES.forEach((b, i) => {
-        const fc = FLOAT_CONFIG[i]
-        const sp = scrollPos(b, sy, loopPx)
-        const fp = floatPos(b, fc, t)
+        const el = bottleRefs.current[i]
+        if (!el) return
 
-        if (dirFlip) {
-          if (wantFloat) {
-            // Scroll→Float: capture scroll position as forward offset so the
-            // transition starts exactly where the bottle currently sits.
-            fwdOffset[i] = { x: sp.x - fp.x, y: sp.y - fp.y, rot: sp.rot - fp.rot }
-          } else {
-            // Float��Scroll: capture float position as backward offset so the
-            // transition starts from where the bottle is now, not scrollPos.
-            bwdOffset[i] = { x: fp.x - sp.x, y: fp.y - sp.y, rot: fp.rot - sp.rot }
-          }
+        const st = scrollTarget(b, sy, loopPx)
+        const ft = floatTarget(b, FLOAT_CONFIG[i], t)
+
+        // Blend determines the TARGET this frame.
+        // When fully in scroll (blend≈0) the target is the exact scroll position.
+        // When fully floating (blend≈1) the target is the float animation.
+        // In between, the target is a weighted mix — but crucially, we do NOT
+        // snap to it; we lerp cur[i] toward it each frame so the bottle always
+        // moves from wherever it actually is, never from a stale anchor.
+        const tx  = st.x   * (1 - blend) + ft.x   * blend
+        const ty  = st.y   * (1 - blend) + ft.y   * blend
+        const trot= st.rot * (1 - blend) + ft.rot * blend
+
+        if (blend <= 0.001) {
+          // Fully in scroll: snap directly — no lerp lag during scrolling.
+          cur[i].x   = st.x
+          cur[i].y   = st.y
+          cur[i].rot = st.rot
+        } else if (blend >= 0.999) {
+          // Fully floating: follow the float animation directly — it provides
+          // its own smooth motion, no lerp needed.
+          cur[i].x   = ft.x
+          cur[i].y   = ft.y
+          cur[i].rot = ft.rot
+        } else {
+          // Transitioning: lerp cur toward the blended target.
+          // Rate 0.07/frame ≈ 90% of the way in ~32 frames (≈0.5s) which
+          // gives a smooth ease without visible lag.
+          const rate = 0.07
+          cur[i].x   += (tx   - cur[i].x)   * rate
+          cur[i].y   += (ty   - cur[i].y)   * rate
+          cur[i].rot += (trot - cur[i].rot) * rate
         }
 
-        // Reset offsets once fully at rest so stale values don't accumulate.
-        if (floatBlend <= 0) bwdOffset[i] = { x: 0, y: 0, rot: 0 }
-        if (floatBlend >= 1) fwdOffset[i] = { x: 0, y: 0, rot: 0 }
-
-        // Two formulas — each guarantees exact position at the START of its
-        // transition and smoothly reaches the target by the END.
-        //
-        //   Scroll→Float:  floatPos  + fwdOffset * (1-blend)
-        //     blend=0 → floatPos + (scrollPos-floatPos) = scrollPos ✓
-        //     blend=1 → floatPos ✓
-        //
-        //   Float→Scroll:  scrollPos + bwdOffset * blend
-        //     blend=high → scrollPos + (floatPos-scrollPos)*blend ≈ floatPos ✓
-        //     blend=0    → scrollPos ✓
-        const x   = wantFloat
-          ? fp.x   + fwdOffset[i].x   * (1 - blend)
-          : sp.x   + bwdOffset[i].x   * blend
-        const y   = wantFloat
-          ? fp.y   + fwdOffset[i].y   * (1 - blend)
-          : sp.y   + bwdOffset[i].y   * blend
-        const rot = wantFloat
-          ? fp.rot + fwdOffset[i].rot * (1 - blend)
-          : sp.rot + bwdOffset[i].rot * blend
-
-        const el = bottleRefs.current[i]
-        if (el) el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${rot}deg)`
+        el.style.transform =
+          `translate3d(${cur[i].x}px, ${cur[i].y}px, 0) rotate(${cur[i].rot}deg)`
       })
 
       raf = requestAnimationFrame(tick)
