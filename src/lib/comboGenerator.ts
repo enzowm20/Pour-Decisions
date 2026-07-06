@@ -135,7 +135,7 @@ function fruitAlignsWithSpirit(fruit: Ingredient, spirit: Ingredient): boolean {
 
 // ── Caps ──────────────────────────────────────────────────────────────────────
 const SOFT_CAP: Record<string, number> = {
-  spirit:    2,  // anchor + at most 1 supporting spirit
+  spirit:    3,  // anchor + up to 2 supporting spirits
   mixer:     1,  // one mixer keeps it focused
   citrus:    1,
   sweetener: 1,
@@ -144,7 +144,7 @@ const SOFT_CAP: Record<string, number> = {
 }
 
 // Hard ceiling on total ingredients in any single combo.
-const MAX_TOTAL_INGREDIENTS = 6
+const MAX_TOTAL_INGREDIENTS = 8
 
 // Spirits get a tighter usage cap so the same gin doesn't headline every combo.
 const MAX_SPIRIT_USES  = 1
