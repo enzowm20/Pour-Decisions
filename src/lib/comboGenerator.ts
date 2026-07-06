@@ -133,6 +133,20 @@ function fruitAlignsWithSpirit(fruit: Ingredient, spirit: Ingredient): boolean {
   return false
 }
 
+// ── Citrus juice detection ────────────────────────────────────────────────────
+// Lime juice stored as category "mixer" still counts as a citrus source.
+// Detect by name so we never put two acidic citrus juices in the same combo,
+// regardless of what category the user assigned the ingredient.
+const CITRUS_JUICE_TOKENS = ["lemon juice", "lime juice", "grapefruit juice", "orange juice", "yuzu juice", "citrus juice"]
+const CITRUS_FRUIT_TOKENS = ["lemon", "lime", "grapefruit", "orange", "yuzu"]
+
+function isCitrusJuice(name: string): boolean {
+  const n = name.toLowerCase()
+  if (CITRUS_JUICE_TOKENS.some((t) => n.includes(t))) return true
+  // Catch "fresh lime", "squeezed lemon" etc. that don't say "juice" explicitly
+  return CITRUS_FRUIT_TOKENS.some((t) => n.includes(t)) && (n.includes("juice") || n.includes("squeezed") || n.includes("fresh"))
+}
+
 // ── Caps ──────────────────────────────────────────────────────────────────────
 const SOFT_CAP: Record<string, number> = {
   spirit:    3,  // anchor + up to 2 supporting spirits
@@ -233,7 +247,15 @@ export function buildCombos(
         const used   = perCategory.get(cat) ?? 0
         const capFor = SOFT_CAP[cat] ?? 1
 
-        // ── citrus: skip if any selected ingredient risks curdling ──
+        // ── one citrus juice regardless of category ──────────────────
+        // Lime juice stored as "mixer" still counts as the citrus slot.
+        // Block any second citrus juice, no matter how it's categorised.
+        if (isCitrusJuice(c.name)) {
+          const alreadyHasCitrusJuice = Object.values(bySlot).flat().some((i) => isCitrusJuice(i.name))
+          if (alreadyHasCitrusJuice) continue
+        }
+
+        // ── citrus category: skip if curdling risk ───────────────────
         if (cat === "citrus") {
           if (hasCurdlingRisk(Object.values(bySlot).flat())) continue
         }
@@ -242,21 +264,24 @@ export function buildCombos(
         if (cat === "sweetener" && used >= 1) continue
 
         // ── fruit: must align with anchor spirit ─────────────────────
-        // Citrus fruits (lemon, lime, grapefruit) share the citrus slot —
-        // if a citrus ingredient is already in the combo, skip them, and
-        // if one of them was added first, block citrus category too.
         if (cat === "fruit") {
           if (!fruitAlignsWithSpirit(c, anchor)) continue
           if (used >= 1) continue
-          const isCitrusFruit = ["lemon", "lime", "grapefruit"].some((k) => c.name.toLowerCase().includes(k))
-          if (isCitrusFruit && (bySlot.citrus ?? []).length > 0) continue
         }
 
-        if (cat === "citrus") {
-          const citrusFruitPresent = (bySlot.fruit ?? []).some((f) =>
-            ["lemon", "lime", "grapefruit"].some((k) => f.name.toLowerCase().includes(k))
+        // ── cross-ingredient coherence ────────────────────────────────
+        // Once the combo has 3+ ingredients, each new addition must also
+        // classically pair with at least one other non-spirit already in
+        // the build — not just the anchor. This prevents cucumber + hibiscus
+        // both independently qualifying with gin but clashing with each other.
+        const nonSpiritsSoFar = Object.entries(bySlot)
+          .filter(([slot]) => slot !== "spirit")
+          .flatMap(([, arr]) => arr ?? [])
+        if (nonSpiritsSoFar.length >= 2) {
+          const cohesesWith = nonSpiritsSoFar.some(
+            (existing) => learnedWith(existing, c) || classicAffinity(existing, c),
           )
-          if (citrusFruitPresent) continue
+          if (!cohesesWith) continue
         }
 
         // ── top-ups: 1 by default; 2nd only if sparkling wine + mixer ─
