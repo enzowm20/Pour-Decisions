@@ -213,18 +213,40 @@ export function buildCombos(
       if (result.length >= maxCombos) break
       if (!underCap(anchor)) continue
 
-      // ── Single anchor spirit ──────────────────────────────────────────
-      // If the anchor is a modifier (Disaronno, Aperol, limoncello…), add
-      // exactly one base spirit that classically pairs with it. This gives
-      // the combo a clear story: modifier adds personality, base spirit
-      // carries the structure. Never add extra spirits beyond this pair.
+      // ── Spirit hierarchy ──────────────────────────────────────────────
+      // Dominant spirits are base spirits (gin, vodka, rum…).
+      // Complementary spirits are modifiers (Aperol, Cointreau, limoncello…).
+      //
+      // Rules:
+      //   Modifier anchor  → pair with exactly 1 base. Max 2 spirits.
+      //   Base anchor      → optionally add a 2nd spirit (base OR modifier).
+      //                      If the 2nd is also a base, optionally add 1
+      //                      modifier as a complementary 3rd. Never 3 bases.
       const bySlot: Combo["bySlot"] = { spirit: [anchor] }
 
       if (!isBaseSpirit(anchor.name)) {
+        // Modifier anchor: needs one base spirit to carry the structure.
         const pairedBase =
           allBaseSpirits.find((s) => classicAffinity(anchor, s) && underCap(s)) ??
           allBaseSpirits.find((s) => underCap(s))
         if (pairedBase) bySlot.spirit = [anchor, pairedBase]
+      } else {
+        // Base anchor: look for a compatible second spirit.
+        const compatible = shuffled(
+          spiritCandidates.filter(
+            (s) => s.id !== anchor.id && classicAffinity(anchor, s) && underCap(s),
+          ),
+        )
+        const second = compatible[0]
+        if (second) {
+          bySlot.spirit = [anchor, second]
+          // Third slot: only a modifier, only when the second is also a base.
+          // This enforces the dominant(s) + complementary pattern.
+          if (isBaseSpirit(second.name)) {
+            const modifier = compatible.find((s) => !isBaseSpirit(s.name) && s.id !== second.id)
+            if (modifier) bySlot.spirit = [anchor, second, modifier]
+          }
+        }
       }
 
       // Re-shuffle the other-ingredient pool per anchor so repeated presses
