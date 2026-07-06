@@ -135,13 +135,16 @@ function fruitAlignsWithSpirit(fruit: Ingredient, spirit: Ingredient): boolean {
 
 // ── Caps ──────────────────────────────────────────────────────────────────────
 const SOFT_CAP: Record<string, number> = {
-  spirit:    3,
-  mixer:     2,
+  spirit:    2,  // anchor + at most 1 supporting spirit
+  mixer:     1,  // one mixer keeps it focused
   citrus:    1,
-  sweetener: 1,  // one sweetener is enough — sugar syrup doesn't need a friend
-  fruit:     1,  // one fruit per combo keeps it clean
-  other:     2,  // up to 2 top-ups but only sparkling wine + carbonated mixer
+  sweetener: 1,
+  fruit:     1,
+  other:     1,  // one top-up; second only allowed via sparkling-wine rule below
 }
+
+// Hard ceiling on total ingredients in any single combo.
+const MAX_TOTAL_INGREDIENTS = 6
 
 // Spirits get a tighter usage cap so the same gin doesn't headline every combo.
 const MAX_SPIRIT_USES  = 1
@@ -196,22 +199,34 @@ export function buildCombos(
       if (result.length >= maxCombos) break
       if (!underCap(anchor)) continue
 
-      // Re-shuffle the other-ingredient pool per anchor so repeated presses
-      // of "generate" always explore a different ordering, never the same set.
-      const otherPool = shuffled(baseOtherPool)
+      // ── Single anchor spirit ──────────────────────────────────────────
+      // If the anchor is a modifier (Disaronno, Aperol, limoncello…), add
+      // exactly one base spirit that classically pairs with it. This gives
+      // the combo a clear story: modifier adds personality, base spirit
+      // carries the structure. Never add extra spirits beyond this pair.
+      const bySlot: Combo["bySlot"] = { spirit: [anchor] }
 
-      const extraSpirits = spiritCandidates.filter(
-        (s) => s.id !== anchor.id &&
-          (learnedWith(anchor, s) || styleWith(anchor, s) || classicAffinity(anchor, s)) &&
-          underCap(s),
-      )
-
-      const bySlot: Combo["bySlot"] = {
-        spirit: [anchor, ...extraSpirits.slice(0, SOFT_CAP.spirit - 1)],
+      if (!isBaseSpirit(anchor.name)) {
+        const pairedBase =
+          allBaseSpirits.find((s) => classicAffinity(anchor, s) && underCap(s)) ??
+          allBaseSpirits.find((s) => underCap(s))
+        if (pairedBase) bySlot.spirit = [anchor, pairedBase]
       }
+
+      // Re-shuffle the other-ingredient pool per anchor so repeated presses
+      // always explore a different ordering.
+      const otherPool = shuffled(baseOtherPool)
       const perCategory = new Map<string, number>()
 
+      const totalSoFar = () => Object.values(bySlot).flat().length
+
       for (const c of otherPool) {
+        // Hard total cap — stop filling once we hit 6 ingredients.
+        if (totalSoFar() >= MAX_TOTAL_INGREDIENTS) break
+
+        // Every non-spirit ingredient must qualify against the anchor spirit
+        // specifically. This is the key coherence rule: if gin is the anchor,
+        // only things that classically or provably pair with gin get in.
         if (!qualifies(anchor, c) || !underCap(c)) continue
 
         const cat    = c.category as (typeof otherCategories)[number]
@@ -223,36 +238,29 @@ export function buildCombos(
           if (hasCurdlingRisk(Object.values(bySlot).flat())) continue
         }
 
-        // ── sweetener: hard cap 1 — sugar syrup doesn't need company ──
+        // ── sweetener: hard cap 1 ────────────────────────────────────
         if (cat === "sweetener" && used >= 1) continue
 
-        // ── fruit: must align with at least one selected spirit ──────
+        // ── fruit: must align with anchor spirit ─────────────────────
         if (cat === "fruit") {
-          const spirits = bySlot.spirit ?? []
-          const aligned = spirits.some((s) => fruitAlignsWithSpirit(c, s))
-          if (!aligned) continue
-          if (used >= 1) continue  // one fruit only
+          if (!fruitAlignsWithSpirit(c, anchor)) continue
+          if (used >= 1) continue
         }
 
-        // ── top-ups: sparkling wine + carbonated mixer = OK; two ─────
-        // ── carbonated non-wine top-ups = never ──────────────────────
+        // ── top-ups: 1 by default; 2nd only if sparkling wine + mixer ─
         if (cat === "other") {
           const existing = bySlot.other ?? []
           if (existing.length >= 1) {
-            const first          = existing[0]
-            const firstIsWine    = isSparklingWine(first.name)
-            const candIsWine     = isSparklingWine(c.name)
-            const firstIsCarbonated = isCarbonated(first.name)
-            const candIsCarbonated  = isCarbonated(c.name)
+            const first = existing[0]
             const validPair =
-              (firstIsWine && candIsCarbonated && !candIsWine) ||
-              (candIsWine  && firstIsCarbonated && !firstIsWine)
+              (isSparklingWine(first.name) && isCarbonated(c.name) && !isSparklingWine(c.name)) ||
+              (isSparklingWine(c.name)     && isCarbonated(first.name) && !isSparklingWine(first.name))
             if (!validPair) continue
           }
-          if (used >= capFor) continue
+          if (used >= 2) continue
         }
 
-        if (cat !== "citrus" && cat !== "sweetener" && cat !== "fruit" && cat !== "other") {
+        if (!["citrus", "sweetener", "fruit", "other"].includes(cat)) {
           if (used >= capFor) continue
         }
 
@@ -260,26 +268,17 @@ export function buildCombos(
         bySlot[cat] = [...(bySlot[cat] ?? []), c]
       }
 
-      // ── Modifier spirit rule: ensure a base spirit is always present ──
-      const currentSpirits = bySlot.spirit ?? []
-      if (!currentSpirits.some((s) => isBaseSpirit(s.name))) {
-        const pairedBase =
-          allBaseSpirits.find(
-            (s) => !currentSpirits.some((cs) => cs.id === s.id) && classicAffinity(anchor, s),
-          ) ?? allBaseSpirits.find((s) => !currentSpirits.some((cs) => cs.id === s.id))
-        if (pairedBase) bySlot.spirit = [...currentSpirits, pairedBase]
-      }
-
-      // ── Structural baseline: ensure acid + sweetener are present ──────
-      // Only fill from stock if the combo doesn't already have one, and
-      // only skip citrus if there's a curdling risk.
-      const allSelected = Object.values(bySlot).flat()
-      if ((!bySlot.citrus || bySlot.citrus.length === 0) && !hasCurdlingRisk(allSelected)) {
-        const fill = shuffled(allInStock.filter((i) => i.category === "citrus"))[0]
+      // ── Structural baseline: citrus + sweetener if not already present ──
+      // Only fill if we're under the total cap and no curdling risk.
+      const allSelected = () => Object.values(bySlot).flat()
+      if ((!bySlot.citrus || bySlot.citrus.length === 0) && !hasCurdlingRisk(allSelected()) && totalSoFar() < MAX_TOTAL_INGREDIENTS) {
+        const fill = shuffled(allInStock.filter((i) => i.category === "citrus" && qualifies(anchor, i)))[0]
+          ?? shuffled(allInStock.filter((i) => i.category === "citrus"))[0]
         if (fill) bySlot.citrus = [fill]
       }
-      if (!bySlot.sweetener || bySlot.sweetener.length === 0) {
-        const fill = shuffled(allInStock.filter((i) => i.category === "sweetener"))[0]
+      if ((!bySlot.sweetener || bySlot.sweetener.length === 0) && totalSoFar() < MAX_TOTAL_INGREDIENTS) {
+        const fill = shuffled(allInStock.filter((i) => i.category === "sweetener" && qualifies(anchor, i)))[0]
+          ?? shuffled(allInStock.filter((i) => i.category === "sweetener"))[0]
         if (fill) bySlot.sweetener = [fill]
       }
 
