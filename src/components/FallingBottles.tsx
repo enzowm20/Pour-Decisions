@@ -97,9 +97,15 @@ export default function FallingBottles({ bottleImg }: Props) {
     let floatTime = 0
     let lastScrollTime = performance.now()
     let lastScrollY = window.scrollY
+    // Continuously-interpolated blend value: 0 = scroll-driven, 1 = floating.
+    // Chases its target each frame at a fixed rate so it can never jump or
+    // reverse — the root cause of the jitter was rawBlend snapping to 1.0
+    // the instant idleMs reset to 0 on every scroll event.
+    let floatBlend = 0
+    const blendRate = 1 / (BLEND_DURATION_MS / 1000) // units: per second
 
     function tick(timestamp: number) {
-      const dt = Math.min(timestamp - prevTimestamp, 64) // cap dt so tab-hidden catch-up doesn't jump
+      const dt = Math.min(timestamp - prevTimestamp, 64) // cap so tab-hidden catch-up doesn't jump
       prevTimestamp = timestamp
 
       const scrollY = window.scrollY
@@ -109,14 +115,21 @@ export default function FallingBottles({ bottleImg }: Props) {
       }
 
       const idleMs = timestamp - lastScrollTime
-      if (idleMs > IDLE_THRESHOLD_MS) floatTime += dt
+      const wantFloat = idleMs > IDLE_THRESHOLD_MS
 
-      // Smoothstep blend so the transition accelerates gently in and out
-      // rather than snapping linearly, which would look mechanical.
-      const rawBlend = idleMs > IDLE_THRESHOLD_MS
-        ? Math.min(1, (idleMs - IDLE_THRESHOLD_MS) / BLEND_DURATION_MS)
-        : Math.max(0, 1 - idleMs / BLEND_DURATION_MS)
-      const blend = smoothstep(rawBlend)
+      // Drive floatBlend smoothly toward 1 when idle, 0 when scrolling.
+      // No condition ever snaps it — only increments/decrements by dt each frame.
+      if (wantFloat) {
+        floatBlend = Math.min(1, floatBlend + blendRate * dt / 1000)
+      } else {
+        floatBlend = Math.max(0, floatBlend - blendRate * dt / 1000)
+      }
+
+      // Only advance floatTime while blending in or fully floating, so the
+      // animation doesn't freeze mid-transition on the way back out.
+      if (floatBlend > 0) floatTime += dt
+
+      const blend = smoothstep(floatBlend)
 
       const loopPx = (LOOP_HEIGHT_VH / 100) * window.innerHeight
       const t = floatTime / 1000
