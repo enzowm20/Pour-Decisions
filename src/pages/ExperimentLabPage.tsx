@@ -320,7 +320,7 @@ export default function ExperimentLabPage() {
       <div className="space-y-3">
         {!isThinking &&
           combos.slice(0, showAllCombos ? undefined : 1).map((combo, i) => (
-            <ComboCard key={i} combo={combo} tags={revealedTags} onTry={() => tryCombo(combo, revealedTags)} badge={`${comboViability(combo, haveArchiveData)} viability`} />
+            <ComboCard key={i} combo={combo} tags={revealedTags} onTry={() => tryCombo(combo, revealedTags)} badge={`${comboViability(combo, haveArchiveData)}% viability`} />
           ))}
         {!isThinking && revealedTags.length > 0 && combos.length === 0 && (
           <p className="text-sm text-[var(--cream-dim)]">
@@ -402,7 +402,7 @@ export default function ExperimentLabPage() {
                 tags={occasionResult.tags}
                 description={occasionComboDescription(combo, occasionResult.reason, i)}
                 onTry={() => tryCombo(combo, occasionResult.tags)}
-                badge={`${comboViability(combo, haveArchiveData)} viability`}
+                badge={`${comboViability(combo, haveArchiveData)}% viability`}
               />
             ))}
             {occasionResult.combos.length === 0 && (
@@ -449,7 +449,7 @@ export default function ExperimentLabPage() {
           <ComboCard
             combo={randomResult.combo}
             tags={randomResult.tags}
-            badge={`${randomResult.viability} viability`}
+            badge={`${randomResult.viability}% viability`}
             onTry={() => tryCombo(randomResult.combo, randomResult.tags)}
           />
         )}
