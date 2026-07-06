@@ -130,7 +130,6 @@ export function buildCombos(
   const otherCategories = ["mixer", "citrus", "sweetener", "fruit", "other"] as const
   const otherPool = shuffled(ingredients.filter((i) => i.category !== "spirit" && flavorMatch(i)))
 
-  const haveArchiveData = pairingGraph.size > 0
   const learnedWith = (anchor: Ingredient, c: Ingredient) => isLearnedPair(pairingGraph, anchor.id, c.id)
   const styleWith = (anchor: Ingredient, c: Ingredient) => hasOverlap(anchor.styles ?? [], c.styles ?? [])
 
