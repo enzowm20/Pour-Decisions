@@ -278,10 +278,13 @@ export function buildCombos(
           if (alreadyHasCitrusJuice) continue
         }
 
-        // ── citrus category: skip if curdling risk ───────────────────
-        if (cat === "citrus") {
-          if (hasCurdlingRisk(Object.values(bySlot).flat())) continue
-        }
+        // ── creamy spirits: no citrus, fruit, or top-ups ────────────
+        // Baileys/Kahlúa/Irish cream builds are dessert-style — adding
+        // soda water, lime, or fruit turns them into a curdled mess.
+        const currentIngredients = Object.values(bySlot).flat()
+        if (hasCurdlingRisk(currentIngredients) && (cat === "citrus" || cat === "fruit" || cat === "other")) continue
+        // Also block adding a creamy ingredient when fruit or top-up already present
+        if (hasCurdlingRisk([...currentIngredients, c]) && (cat === "fruit" || cat === "other")) continue
 
         // ── sweetener: hard cap 1 ────────────────────────────────────
         if (cat === "sweetener" && used >= 1) continue

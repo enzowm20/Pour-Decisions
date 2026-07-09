@@ -10,10 +10,13 @@ export default function GenomeLab() {
   const [pdfs, setPdfs] = useState<PdfEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
   const [viewingIndex, setViewingIndex] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const cardRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const loadPdfs = useCallback(async () => {
     setLoading(true)
@@ -43,6 +46,12 @@ export default function GenomeLab() {
 
   useEffect(() => { loadPdfs() }, [loadPdfs])
 
+  // Scroll the active card into view when activeIndex changes
+  useEffect(() => {
+    const card = cardRefs.current[activeIndex]
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" })
+  }, [activeIndex])
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
     if (files.length === 0) return
@@ -65,9 +74,9 @@ export default function GenomeLab() {
     await loadPdfs()
   }
 
-  const viewing = viewingIndex !== null ? pdfs[viewingIndex] : null
-
-  if (viewing !== null && viewing) {
+  // Full-screen viewer
+  if (viewingIndex !== null && pdfs[viewingIndex]) {
+    const pdf = pdfs[viewingIndex]
     return (
       <div className="flex h-[calc(100vh-8rem)] flex-col gap-3">
         <div className="flex items-center gap-3">
@@ -76,26 +85,24 @@ export default function GenomeLab() {
             onClick={() => setViewingIndex(null)}
             className="text-sm text-[var(--cream-dim)] hover:text-[var(--cream)]"
           >
-            ← Back to shelf
+            ← Back
           </button>
           <p className="flex-1 truncate text-sm font-medium">
-            {viewing.name.replace(/\.pdf$/i, "").replace(/_/g, " ")}
+            {pdf.name.replace(/\.pdf$/i, "").replace(/[_-]/g, " ")}
           </p>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setViewingIndex((i) => Math.max(0, (i ?? 0) - 1))}
+              onClick={() => { const i = Math.max(0, viewingIndex - 1); setViewingIndex(i); setActiveIndex(i) }}
               disabled={viewingIndex === 0}
               className="h-8 rounded-md border border-[var(--cream-dim)]/25 px-3 text-xs disabled:opacity-30 hover:bg-[var(--surface-raised)]"
             >
               ← Prev
             </button>
-            <span className="text-xs text-[var(--cream-dim)]">
-              {(viewingIndex ?? 0) + 1} / {pdfs.length}
-            </span>
+            <span className="text-xs text-[var(--cream-dim)]">{viewingIndex + 1} / {pdfs.length}</span>
             <button
               type="button"
-              onClick={() => setViewingIndex((i) => Math.min(pdfs.length - 1, (i ?? 0) + 1))}
+              onClick={() => { const i = Math.min(pdfs.length - 1, viewingIndex + 1); setViewingIndex(i); setActiveIndex(i) }}
               disabled={viewingIndex === pdfs.length - 1}
               className="h-8 rounded-md border border-[var(--cream-dim)]/25 px-3 text-xs disabled:opacity-30 hover:bg-[var(--surface-raised)]"
             >
@@ -104,8 +111,8 @@ export default function GenomeLab() {
           </div>
         </div>
         <iframe
-          src={viewing.url}
-          title={viewing.name}
+          src={pdf.url}
+          title={pdf.name}
           className="flex-1 rounded-lg border border-[var(--cream-dim)]/15"
           style={{ background: "#fff" }}
         />
@@ -115,22 +122,16 @@ export default function GenomeLab() {
 
   return (
     <div>
+      {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-medium">Genome Lab</h2>
           <p className="text-sm text-[var(--cream-dim)]">
-            Your cocktail genome lab PDFs — click any book to read it.
+            Flick through your cocktail genome PDFs — click any to open it.
           </p>
         </div>
         <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            multiple
-            className="hidden"
-            onChange={handleUpload}
-          />
+          <input ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={handleUpload} />
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -142,64 +143,121 @@ export default function GenomeLab() {
         </div>
       </div>
 
-      {uploadError && (
-        <p className="mb-3 text-sm text-red-400">{uploadError}</p>
-      )}
-
-      {loading && (
-        <p className="text-sm text-[var(--cream-dim)]">Loading shelf…</p>
-      )}
-
+      {uploadError && <p className="mb-3 text-sm text-red-400">{uploadError}</p>}
+      {loading && <p className="text-sm text-[var(--cream-dim)]">Loading shelf…</p>}
       {error && (
         <p className="text-sm text-red-400">
-          Couldn't load PDFs: {error}. Make sure the <code>genome-lab</code> bucket exists in
-          Supabase Storage and is set to public.
+          Couldn't load PDFs: {error}. Make sure the <code>genome-lab</code> bucket exists in Supabase Storage and is set to public.
         </p>
       )}
 
       {!loading && !error && pdfs.length === 0 && (
         <div className="rounded-lg border border-dashed border-[var(--cream-dim)]/25 p-10 text-center">
           <p className="mb-2 text-sm text-[var(--cream-dim)]">No PDFs yet.</p>
-          <p className="text-xs text-[var(--cream-dim)]">
-            Upload your cocktail genome lab PDFs using the button above.
-          </p>
+          <p className="text-xs text-[var(--cream-dim)]">Upload your cocktail genome lab PDFs using the button above.</p>
         </div>
       )}
 
       {!loading && pdfs.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {pdfs.map((pdf, i) => {
-            const title = pdf.name.replace(/\.pdf$/i, "").replace(/[_-]/g, " ")
-            return (
-              <button
-                key={pdf.name}
-                type="button"
-                onClick={() => setViewingIndex(i)}
-                className="group flex flex-col items-center gap-2 rounded-lg border border-[var(--cream-dim)]/15 bg-[var(--surface-raised)] p-4 text-left hover:border-[var(--gold)]/50 hover:bg-[var(--surface-raised)] transition-colors"
-              >
-                {/* Book spine graphic */}
-                <div
-                  className="flex w-full items-center justify-center rounded-md"
-                  style={{
-                    height: 140,
-                    background: `hsl(${(i * 47) % 360}, 35%, 22%)`,
-                    borderLeft: "6px solid rgba(0,0,0,0.3)",
+        <>
+          {/* Carousel */}
+          <div
+            ref={carouselRef}
+            className="flex gap-4 overflow-x-auto pb-4"
+            style={{
+              scrollSnapType: "x mandatory",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+            }}
+          >
+            {pdfs.map((pdf, i) => {
+              const title = pdf.name.replace(/\.pdf$/i, "").replace(/[_-]/g, " ")
+              const isActive = i === activeIndex
+              return (
+                <button
+                  key={pdf.name}
+                  ref={(el) => { cardRefs.current[i] = el }}
+                  type="button"
+                  onClick={() => {
+                    if (isActive) {
+                      setViewingIndex(i)
+                    } else {
+                      setActiveIndex(i)
+                    }
                   }}
+                  style={{ scrollSnapAlign: "center", flexShrink: 0 }}
+                  className={`group relative flex flex-col rounded-xl border transition-all duration-300 overflow-hidden ${
+                    isActive
+                      ? "border-[var(--gold)]/70 shadow-lg shadow-[var(--gold)]/10"
+                      : "border-[var(--cream-dim)]/15 opacity-60 hover:opacity-80"
+                  }`}
                 >
-                  <span
-                    className="select-none text-3xl opacity-60 group-hover:opacity-90 transition-opacity"
-                    style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+                  {/* PDF preview thumbnail */}
+                  <div
+                    className="relative overflow-hidden bg-white"
+                    style={{ width: 180, height: 234 }}
                   >
-                    📄
-                  </span>
-                </div>
-                <p className="w-full truncate text-center text-xs font-medium leading-snug">
-                  {title}
-                </p>
-              </button>
-            )
-          })}
-        </div>
+                    <iframe
+                      src={`${pdf.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                      title={title}
+                      tabIndex={-1}
+                      style={{
+                        width: 720,
+                        height: 936,
+                        transform: "scale(0.25)",
+                        transformOrigin: "top left",
+                        pointerEvents: "none",
+                        border: "none",
+                      }}
+                    />
+                    {/* Click-to-open overlay on active card */}
+                    {isActive && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-medium text-[var(--on-gold)]">
+                          Open
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Title */}
+                  <div
+                    className="px-2 py-2 text-center"
+                    style={{ width: 180, background: "var(--surface-raised)" }}
+                  >
+                    <p className="truncate text-xs font-medium leading-snug">{title}</p>
+                    {isActive && (
+                      <p className="mt-0.5 text-xs text-[var(--cream-dim)]">tap to open</p>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Dot indicators + arrow nav */}
+          <div className="mt-2 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
+              disabled={activeIndex === 0}
+              className="h-7 w-7 rounded-full border border-[var(--cream-dim)]/25 text-xs disabled:opacity-30 hover:bg-[var(--surface-raised)]"
+            >
+              ←
+            </button>
+            <span className="text-xs text-[var(--cream-dim)]">
+              {activeIndex + 1} / {pdfs.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveIndex((i) => Math.min(pdfs.length - 1, i + 1))}
+              disabled={activeIndex === pdfs.length - 1}
+              className="h-7 w-7 rounded-full border border-[var(--cream-dim)]/25 text-xs disabled:opacity-30 hover:bg-[var(--surface-raised)]"
+            >
+              →
+            </button>
+          </div>
+        </>
       )}
     </div>
   )
