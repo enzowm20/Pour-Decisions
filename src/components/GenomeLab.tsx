@@ -12,6 +12,7 @@ export default function GenomeLab() {
   const [error, setError] = useState<string | null>(null)
   const [viewingIndex, setViewingIndex] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadPdfs = useCallback(async () => {
@@ -46,11 +47,18 @@ export default function GenomeLab() {
     const files = Array.from(e.target.files ?? [])
     if (files.length === 0) return
     setUploading(true)
+    setUploadError(null)
     for (const file of files) {
       if (!file.name.toLowerCase().endsWith(".pdf")) continue
-      await supabase.storage
+      const { error: uploadErr } = await supabase.storage
         .from(GENOME_LAB_BUCKET)
         .upload(file.name, file, { upsert: true })
+      if (uploadErr) {
+        setUploadError(`Upload failed: ${uploadErr.message}`)
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ""
+        return
+      }
     }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ""
@@ -133,6 +141,10 @@ export default function GenomeLab() {
           </button>
         </div>
       </div>
+
+      {uploadError && (
+        <p className="mb-3 text-sm text-red-400">{uploadError}</p>
+      )}
 
       {loading && (
         <p className="text-sm text-[var(--cream-dim)]">Loading shelf…</p>
