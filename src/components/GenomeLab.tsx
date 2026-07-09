@@ -299,6 +299,21 @@ export default function GenomeLab() {
     setDragOverFolder(null); setDraggingPdf(null)
   }
 
+  // ── Delete ─────────────────────────────────────────────────────────────────
+
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  async function deletePdf(pdfName: string) {
+    await supabase.storage.from(GENOME_LAB_BUCKET).remove([pdfName])
+    // Remove from all folders too
+    const updatedFolders = Object.fromEntries(
+      Object.entries(folders).map(([fn, members]) => [fn, members.filter((m) => m !== pdfName)])
+    )
+    setFolders(updatedFolders); saveLocal("genome-lab-folders", updatedFolders)
+    setConfirmDelete(null)
+    await loadPdfs()
+  }
+
   // ── Upload ─────────────────────────────────────────────────────────────────
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -408,6 +423,36 @@ export default function GenomeLab() {
                   >
                     <PdfThumbnail url={pdf.url} width={180} />
                   </button>
+
+                  {/* Delete button */}
+                  <div className="absolute top-2 right-2 z-10">
+                    {confirmDelete === pdf.name ? (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); deletePdf(pdf.name) }}
+                          className="rounded bg-[var(--berry)] px-1.5 py-0.5 text-xs font-medium text-white"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(null) }}
+                          className="rounded bg-[var(--surface-raised)] px-1.5 py-0.5 text-xs text-[var(--cream-dim)]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(pdf.name) }}
+                        className="hidden rounded-full bg-black/50 px-1.5 py-0.5 text-xs text-white hover:bg-black/80 group-hover:block"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
 
                   <div className="px-2 py-2 text-center" style={{ background: "var(--surface-raised)" }}>
                     {editingPdf === pdf.name ? (
