@@ -14,8 +14,13 @@ import FallingBottles from "../components/FallingBottles"
 import ConfirmButton from "../components/ConfirmButton"
 import ComboCard from "../components/ComboCard"
 import SlotMachineButton from "../components/SlotMachineButton"
+import FeaturedRecipeCard from "../components/FeaturedRecipeCard"
+import GenomeLab from "../components/GenomeLab"
 import bombayBottle from "../assets/bombay-bottle.webp"
+import { COCKTAILS, MOCKTAILS } from "../data/menuRecipes"
 import { FLAVOR_TAGS, type FlavorTag, type Ingredient } from "../types"
+
+const ALL_RECIPES = [...COCKTAILS, ...MOCKTAILS]
 
 const THINKING_DELAY = () => 5000 + Math.random() * 5000
 
@@ -33,9 +38,12 @@ function ThinkingIndicator({ label }: { label: string }) {
   )
 }
 
+type LabTab = "lab" | "genome"
+
 export default function ExperimentLabPage() {
   const { ingredients, experiments, recipes, substitutions, labQueue, removeFromLabQueue, locked } = useData()
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<LabTab>("lab")
   const [selectedTags, setSelectedTags] = useState<FlavorTag[]>([])
   const [revealedTags, setRevealedTags] = useState<FlavorTag[]>([])
   const [isThinking, setIsThinking] = useState(false)
@@ -255,9 +263,8 @@ export default function ExperimentLabPage() {
   // rough "how confident is this" percentage attached. ---
   const [randomThinking, setRandomThinking] = useState(false)
   const randomTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [randomResult, setRandomResult] = useState<{ tags: FlavorTag[]; combo: Combo; viability: number } | null>(
-    null,
-  )
+  const [randomResult, setRandomResult] = useState<{ tags: FlavorTag[]; combo: Combo; viability: number } | null>(null)
+  const [randomFeatured, setRandomFeatured] = useState<typeof ALL_RECIPES[number] | null>(null)
   const [randomEmpty, setRandomEmpty] = useState(false)
 
   function handleRandomCocktail() {
@@ -265,13 +272,19 @@ export default function ExperimentLabPage() {
     if (randomTimeout.current) clearTimeout(randomTimeout.current)
     setRandomThinking(true)
     setRandomResult(null)
+    setRandomFeatured(null)
     setRandomEmpty(false)
     randomTimeout.current = setTimeout(() => {
-      // A few attempts with different random tag sets, since a single
-      // unlucky combination (tags nothing in stock happens to carry) would
-      // otherwise come up empty more often than it should.
+      // Option C hybrid: 30% chance to return a curated featured recipe,
+      // 70% chance to generate a novel combo using mined affinities.
+      if (Math.random() < 0.3) {
+        const pick = ALL_RECIPES[Math.floor(Math.random() * ALL_RECIPES.length)]
+        setRandomFeatured(pick)
+        setRandomThinking(false)
+        return
+      }
       for (let attempt = 0; attempt < 6; attempt++) {
-        const tagCount = 2 + Math.floor(Math.random() * 3) // 2–4 tags
+        const tagCount = 2 + Math.floor(Math.random() * 3)
         const tags = shuffled([...FLAVOR_TAGS]).slice(0, tagCount)
         const found = buildCombos(tags, ingredients, pairingGraph, provenGroups, excludeSeen(), 5)
         if (found.length > 0) {
@@ -296,6 +309,28 @@ export default function ExperimentLabPage() {
   return (
     <div className="relative">
       <FallingBottles bottleImg={bombayBottle} />
+
+      {/* Tab switcher */}
+      <div className="mb-6 flex gap-1 border-b border-[var(--cream-dim)]/15 pb-0">
+        {(["lab", "genome"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === tab
+                ? "border-b-2 border-[var(--gold)] text-[var(--gold)]"
+                : "text-[var(--cream-dim)] hover:text-[var(--cream)]"
+            }`}
+            style={{ marginBottom: activeTab === tab ? -1 : 0 }}
+          >
+            {tab === "lab" ? "Experiment Lab" : "Genome Lab"}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "genome" && <GenomeLab />}
+      {activeTab === "lab" && (<>
       <RevealOnScroll>
         <h1 className="mb-1 text-lg font-medium">Build A Flavour Profile</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">
@@ -453,6 +488,10 @@ export default function ExperimentLabPage() {
             onTry={() => tryCombo(randomResult.combo, randomResult.tags)}
           />
         )}
+
+        {!randomThinking && randomFeatured && (
+          <FeaturedRecipeCard recipe={randomFeatured} />
+        )}
       </RevealOnScroll>
 
       <RevealOnScroll delay={250} className="mt-8 border-t border-[var(--cream-dim)]/15 pt-6">
@@ -535,6 +574,7 @@ export default function ExperimentLabPage() {
 
         <FlaggedIngredients />
       </RevealOnScroll>
+      </>)}
     </div>
   )
 }

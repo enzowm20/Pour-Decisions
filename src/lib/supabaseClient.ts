@@ -16,3 +16,4 @@ export const supabase = createClient(url, anonKey)
 // in Supabase's API, so this has to match exactly what was created. Files
 // are organized as <bucket>/<table>/<rowId>/<n>.jpg.
 export const PHOTOS_BUCKET = "Photos"
+export const GENOME_LAB_BUCKET = "genome-lab"

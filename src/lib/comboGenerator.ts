@@ -1,4 +1,5 @@
 import { isLearnedPair, provenMembersWithin, type PairingGraph, type ProvenGroup } from "./learnedPairings"
+import { minedAffinity } from "./recipeAffinities"
 import type { FlavorTag, Ingredient, IngredientCategory } from "../types"
 
 export interface Combo {
@@ -190,7 +191,7 @@ export function buildCombos(
   const learnedWith = (a: Ingredient, b: Ingredient) => isLearnedPair(pairingGraph, a.id, b.id)
   const styleWith   = (a: Ingredient, b: Ingredient) => hasOverlap(a.styles ?? [], b.styles ?? [])
   const qualifies   = (anchor: Ingredient, c: Ingredient) =>
-    learnedWith(anchor, c) || styleWith(anchor, c) || classicAffinity(anchor, c)
+    learnedWith(anchor, c) || styleWith(anchor, c) || classicAffinity(anchor, c) || minedAffinity(anchor.name, c.name)
 
   const spiritUseCount = new Map<string, number>()
   const otherUseCount  = new Map<string, number>()
