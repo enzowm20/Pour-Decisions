@@ -1,9 +1,113 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import * as pdfjsLib from "pdfjs-dist"
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url"
 import { supabase, GENOME_LAB_BUCKET } from "../lib/supabaseClient"
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 interface PdfEntry {
   name: string
   url: string
+}
+
+// Renders a single page of a PDF onto a canvas element
+function PdfThumbnail({ url, pageNum = 1, width = 180 }: { url: string; pageNum?: number; width?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    async function render() {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      try {
+        const pdf = await pdfjsLib.getDocument({ url, disableRange: false }).promise
+        if (cancelled) return
+        const page = await pdf.getPage(pageNum)
+        if (cancelled) return
+        const viewport = page.getViewport({ scale: 1 })
+        const scale = width / viewport.width
+        const scaled = page.getViewport({ scale })
+        canvas.width = scaled.width
+        canvas.height = scaled.height
+        await page.render({ canvas, viewport: scaled }).promise
+        if (!cancelled) setLoaded(true)
+      } catch {
+        // silently ignore load failures (bucket empty, CORS, etc.)
+      }
+    }
+    render()
+    return () => { cancelled = true }
+  }, [url, pageNum, width])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        display: "block",
+        width,
+        opacity: loaded ? 1 : 0,
+        transition: "opacity 0.25s ease",
+        background: "#fff",
+      }}
+    />
+  )
+}
+
+// Full canvas-based viewer — renders all pages stacked
+function PdfViewer({ url }: { url: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [numPages, setNumPages] = useState(0)
+  const [pageUrls] = useState(() => new Map<number, true>())
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const pdf = await pdfjsLib.getDocument({ url }).promise
+        if (cancelled) return
+        setNumPages(pdf.numPages)
+
+        // Render all pages sequentially into individual canvases
+        for (let p = 1; p <= pdf.numPages; p++) {
+          if (cancelled) break
+          const page = await pdf.getPage(p)
+          if (cancelled) break
+          const container = containerRef.current
+          if (!container) break
+          const canvas = container.querySelector<HTMLCanvasElement>(`[data-page="${p}"]`)
+          if (!canvas) break
+          const viewport = page.getViewport({ scale: 1 })
+          const scale = (container.clientWidth || 700) / viewport.width
+          const scaled = page.getViewport({ scale })
+          canvas.width = scaled.width
+          canvas.height = scaled.height
+          await page.render({ canvas, viewport: scaled }).promise
+          pageUrls.set(p, true)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    load()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url])
+
+  return (
+    <div ref={containerRef} className="flex flex-col gap-1 overflow-y-auto rounded-lg bg-[var(--surface-raised)] p-2" style={{ flex: 1 }}>
+      {numPages === 0 && (
+        <p className="py-10 text-center text-sm text-[var(--cream-dim)]">Loading…</p>
+      )}
+      {Array.from({ length: numPages }, (_, i) => i + 1).map((p) => (
+        <canvas
+          key={p}
+          data-page={p}
+          style={{ display: "block", width: "100%", background: "#fff", borderRadius: 4 }}
+        />
+      ))}
+    </div>
+  )
 }
 
 export default function GenomeLab() {
@@ -15,7 +119,6 @@ export default function GenomeLab() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const carouselRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const loadPdfs = useCallback(async () => {
@@ -34,9 +137,7 @@ export default function GenomeLab() {
     const entries = (data ?? [])
       .filter((f) => f.name.toLowerCase().endsWith(".pdf"))
       .map((f) => {
-        const { data: urlData } = supabase.storage
-          .from(GENOME_LAB_BUCKET)
-          .getPublicUrl(f.name)
+        const { data: urlData } = supabase.storage.from(GENOME_LAB_BUCKET).getPublicUrl(f.name)
         return { name: f.name, url: urlData.publicUrl }
       })
 
@@ -46,7 +147,6 @@ export default function GenomeLab() {
 
   useEffect(() => { loadPdfs() }, [loadPdfs])
 
-  // Scroll the active card into view when activeIndex changes
   useEffect(() => {
     const card = cardRefs.current[activeIndex]
     if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" })
@@ -110,19 +210,13 @@ export default function GenomeLab() {
             </button>
           </div>
         </div>
-        <iframe
-          src={pdf.url}
-          title={pdf.name}
-          className="flex-1 rounded-lg border border-[var(--cream-dim)]/15"
-          style={{ background: "#fff" }}
-        />
+        <PdfViewer url={pdf.url} />
       </div>
     )
   }
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-medium">Genome Lab</h2>
@@ -160,15 +254,9 @@ export default function GenomeLab() {
 
       {!loading && pdfs.length > 0 && (
         <>
-          {/* Carousel */}
           <div
-            ref={carouselRef}
             className="flex gap-4 overflow-x-auto pb-4"
-            style={{
-              scrollSnapType: "x mandatory",
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-            }}
+            style={{ scrollSnapType: "x mandatory", scrollbarWidth: "none" }}
           >
             {pdfs.map((pdf, i) => {
               const title = pdf.name.replace(/\.pdf$/i, "").replace(/[_-]/g, " ")
@@ -178,84 +266,48 @@ export default function GenomeLab() {
                   key={pdf.name}
                   ref={(el) => { cardRefs.current[i] = el }}
                   type="button"
-                  onClick={() => {
-                    if (isActive) {
-                      setViewingIndex(i)
-                    } else {
-                      setActiveIndex(i)
-                    }
-                  }}
-                  style={{ scrollSnapAlign: "center", flexShrink: 0 }}
-                  className={`group relative flex flex-col rounded-xl border transition-all duration-300 overflow-hidden ${
+                  onClick={() => isActive ? setViewingIndex(i) : setActiveIndex(i)}
+                  style={{ scrollSnapAlign: "center", flexShrink: 0, width: 180 }}
+                  className={`group flex flex-col rounded-xl border overflow-hidden transition-all duration-300 ${
                     isActive
                       ? "border-[var(--gold)]/70 shadow-lg shadow-[var(--gold)]/10"
-                      : "border-[var(--cream-dim)]/15 opacity-60 hover:opacity-80"
+                      : "border-[var(--cream-dim)]/15 opacity-55 hover:opacity-75"
                   }`}
                 >
-                  {/* PDF preview thumbnail */}
-                  <div
-                    className="relative overflow-hidden bg-white"
-                    style={{ width: 180, height: 234 }}
-                  >
-                    <iframe
-                      src={`${pdf.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                      title={title}
-                      tabIndex={-1}
-                      style={{
-                        width: 720,
-                        height: 936,
-                        transform: "scale(0.25)",
-                        transformOrigin: "top left",
-                        pointerEvents: "none",
-                        border: "none",
-                      }}
-                    />
-                    {/* Click-to-open overlay on active card */}
+                  {/* Canvas thumbnail — rendered by PDF.js, no iframe */}
+                  <div className="relative overflow-hidden bg-white" style={{ height: 234 }}>
+                    <PdfThumbnail url={pdf.url} width={180} />
                     {isActive && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/25 transition-colors">
                         <span className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-medium text-[var(--on-gold)]">
                           Open
                         </span>
                       </div>
                     )}
                   </div>
-
-                  {/* Title */}
-                  <div
-                    className="px-2 py-2 text-center"
-                    style={{ width: 180, background: "var(--surface-raised)" }}
-                  >
+                  <div className="px-2 py-2 text-center" style={{ background: "var(--surface-raised)" }}>
                     <p className="truncate text-xs font-medium leading-snug">{title}</p>
-                    {isActive && (
-                      <p className="mt-0.5 text-xs text-[var(--cream-dim)]">tap to open</p>
-                    )}
+                    {isActive && <p className="mt-0.5 text-xs text-[var(--cream-dim)]">tap to open</p>}
                   </div>
                 </button>
               )
             })}
           </div>
 
-          {/* Dot indicators + arrow nav */}
           <div className="mt-2 flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
               disabled={activeIndex === 0}
               className="h-7 w-7 rounded-full border border-[var(--cream-dim)]/25 text-xs disabled:opacity-30 hover:bg-[var(--surface-raised)]"
-            >
-              ←
-            </button>
-            <span className="text-xs text-[var(--cream-dim)]">
-              {activeIndex + 1} / {pdfs.length}
-            </span>
+            >←</button>
+            <span className="text-xs text-[var(--cream-dim)]">{activeIndex + 1} / {pdfs.length}</span>
             <button
               type="button"
               onClick={() => setActiveIndex((i) => Math.min(pdfs.length - 1, i + 1))}
               disabled={activeIndex === pdfs.length - 1}
               className="h-7 w-7 rounded-full border border-[var(--cream-dim)]/25 text-xs disabled:opacity-30 hover:bg-[var(--surface-raised)]"
-            >
-              →
-            </button>
+            >→</button>
           </div>
         </>
       )}
