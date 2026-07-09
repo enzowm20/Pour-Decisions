@@ -436,6 +436,8 @@ export default function GenomeLab() {
             })}
           </div>
 
+          <p className="mt-2 text-center text-xs text-[var(--cream-dim)]">{visiblePdfs.length} PDF{visiblePdfs.length !== 1 ? "s" : ""}</p>
+
           {/* Letter scrub slider — identical to Archive */}
           {sortedPdfs.length > 0 && (
             <div className="mt-2 flex items-center gap-3">
