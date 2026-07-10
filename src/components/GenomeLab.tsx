@@ -203,6 +203,11 @@ export default function GenomeLab() {
 
   useEffect(() => { loadPdfs() }, [loadPdfs])
 
+  // Scroll carousel back to the start whenever the letter floor changes
+  useEffect(() => {
+    carouselRef.current?.scrollTo({ left: 0, behavior: "smooth" })
+  }, [letterFloor])
+
   // ── Visible + filtered PDFs ────────────────────────────────────────────────
 
   const sortedPdfs = (
