@@ -17,10 +17,13 @@ import {
   substitutionFromDb,
   substitutionToDb,
   upsertRow,
+  usageEntryFromDb,
+  usageEntryToDb,
   venueFromDb,
   venueToDb,
 } from "../lib/db"
 import { makeId } from "../lib/id"
+import type { UsageEntry } from "../components/UsageTracker"
 import type { Experiment, Ingredient, LabQueueItem, Recipe, Scan, Substitution, Venue } from "../types"
 
 interface DataContextValue {
@@ -72,6 +75,10 @@ interface DataContextValue {
   labQueue: LabQueueItem[]
   addToLabQueue: (data: Omit<LabQueueItem, "id">) => LabQueueItem
   removeFromLabQueue: (id: string) => void
+
+  usageEntries: UsageEntry[]
+  addUsageEntry: (data: Omit<UsageEntry, "id">) => void
+  removeUsageEntry: (id: string) => void
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -86,6 +93,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [experiments, setExperiments] = useState<Experiment[]>([])
   const [labQueue, setLabQueue] = useState<LabQueueItem[]>([])
+  const [usageEntries, setUsageEntries] = useState<UsageEntry[]>([])
 
   // Everyone who opens this site reads the SAME Supabase project — this one
   // fetch on mount is what makes the data public/shared instead of stuck in
@@ -93,7 +101,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [ing, subs, ven, scn, rec, exp, queue, lockedNow] = await Promise.all([
+      const [ing, subs, ven, scn, rec, exp, queue, usage, lockedNow] = await Promise.all([
         fetchTable<Record<string, unknown>>("ingredients"),
         fetchTable<Record<string, unknown>>("substitutions"),
         fetchTable<Record<string, unknown>>("venues"),
@@ -101,6 +109,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchTable<Record<string, unknown>>("recipes"),
         fetchTable<Record<string, unknown>>("experiments"),
         fetchTable<Record<string, unknown>>("lab_queue"),
+        fetchTable<Record<string, unknown>>("usage_log"),
         fetchSiteLocked(),
       ])
       if (cancelled) return
@@ -111,6 +120,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setRecipes(rec.map(recipeFromDb))
       setExperiments(exp.map(experimentFromDb))
       setLabQueue(queue.map(labQueueFromDb))
+      setUsageEntries(usage.map(usageEntryFromDb))
       setLockedState(lockedNow)
       setLoading(false)
     })().catch((err) => {
@@ -336,6 +346,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (locked) return
       setLabQueue((prev) => prev.filter((i) => i.id !== id))
       deleteRow("lab_queue", id)
+    },
+
+    usageEntries,
+    addUsageEntry: (data) => {
+      const entry = { ...data, id: makeId() }
+      setUsageEntries((prev) => [entry, ...prev])
+      upsertRow("usage_log", usageEntryToDb(entry))
+    },
+    removeUsageEntry: (id) => {
+      setUsageEntries((prev) => prev.filter((e) => e.id !== id))
+      deleteRow("usage_log", id)
     },
   }
 

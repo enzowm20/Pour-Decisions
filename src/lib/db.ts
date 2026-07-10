@@ -41,6 +41,29 @@ export async function deleteRow(table: string, id: string) {
   if (error) console.warn(`Couldn't delete from "${table}" in Supabase.`, error)
 }
 
+import type { UsageEntry } from "../components/UsageTracker"
+
+export function usageEntryToDb(e: UsageEntry) {
+  return {
+    id: e.id,
+    ingredient_id: e.ingredientId,
+    amount: e.amount,
+    unit: e.unit,
+    date: e.date,
+    note: e.note ?? null,
+  }
+}
+export function usageEntryFromDb(r: Record<string, unknown>): UsageEntry {
+  return {
+    id: r.id as string,
+    ingredientId: r.ingredient_id as string,
+    amount: r.amount as number,
+    unit: r.unit as string,
+    date: r.date as string,
+    note: r.note as string | undefined,
+  }
+}
+
 export function ingredientToDb(i: Ingredient) {
   return {
     id: i.id,

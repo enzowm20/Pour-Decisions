@@ -14,15 +14,6 @@ export interface UsageEntry {
   note?: string
 }
 
-// ── Persistence ───────────────────────────────────────────────────────────────
-
-function loadEntries(): UsageEntry[] {
-  try { return JSON.parse(localStorage.getItem("stock-usage-log") ?? "[]") } catch { return [] }
-}
-function saveEntries(entries: UsageEntry[]) {
-  localStorage.setItem("stock-usage-log", JSON.stringify(entries))
-}
-function newId() { return `u-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
 // ── Period helpers ────────────────────────────────────────────────────────────
 
@@ -139,8 +130,7 @@ function LogModal({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function UsageTracker() {
-  const { ingredients } = useData()
-  const [entries, setEntries] = useState<UsageEntry[]>(loadEntries)
+  const { ingredients, usageEntries: entries, addUsageEntry, removeUsageEntry } = useData()
   const [period, setPeriod] = useState<Period>("week")
   const [loggingFor, setLoggingFor] = useState<Ingredient | null>(null)
   const [viewCategory, setViewCategory] = useState<string>("all")
@@ -200,24 +190,12 @@ export default function UsageTracker() {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   function handleSave(ingredient: Ingredient, amount: number, unit: string, date: string, note: string) {
-    const entry: UsageEntry = {
-      id: newId(),
-      ingredientId: ingredient.id,
-      amount,
-      unit,
-      note: note || undefined,
-      date,
-    }
-    const updated = [entry, ...entries]
-    setEntries(updated)
-    saveEntries(updated)
+    addUsageEntry({ ingredientId: ingredient.id, amount, unit, date, note: note || undefined })
     setLoggingFor(null)
   }
 
   function deleteEntry(id: string) {
-    const updated = entries.filter((e) => e.id !== id)
-    setEntries(updated)
-    saveEntries(updated)
+    removeUsageEntry(id)
   }
 
   const categories = ["spirit", "mixer", "citrus", "sweetener", "fruit", "other"] as const
