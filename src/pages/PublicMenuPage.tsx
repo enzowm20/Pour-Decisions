@@ -58,8 +58,7 @@ export default function PublicMenuPage() {
       <div className="pointer-events-none fixed bottom-3 left-3 z-20 leading-snug">
         <p className="text-[11px] font-medium text-[var(--cream-dim)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">Designed by</p>
         <p className="text-[13px] font-semibold text-[var(--cream)] drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">Lorenzo Montenegro</p>
-        <p className="text-[11px] font-medium text-[var(--cream-dim)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">for</p>
-        <p className="text-[13px] font-semibold text-[var(--cream)] drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">The Fiddler</p>
+        <p className="text-[11px] font-medium text-[var(--cream-dim)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">for The Fiddler</p>
       </div>
 
       {/* Matches the staff header's format — logo on a cream strip, just larger,
