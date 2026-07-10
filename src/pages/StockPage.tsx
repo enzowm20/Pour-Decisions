@@ -5,6 +5,7 @@ import { byName } from "../lib/sort"
 import FallingBottles from "../components/FallingBottles"
 import RevealOnScroll from "../components/RevealOnScroll"
 import ConfirmButton from "../components/ConfirmButton"
+import UsageTracker from "../components/UsageTracker"
 import aperolBottle from "../assets/aperol-bottle.webp"
 import {
   CATEGORY_LABELS,
@@ -74,8 +75,11 @@ function groupSpirits(spirits: Ingredient[]): { label: string; items: Ingredient
     .map((label) => ({ label, items: byGroup.get(label)! }))
 }
 
+type StockTab = "stock" | "usage"
+
 export default function StockPage() {
   const { ingredients, addIngredient, updateIngredient, removeIngredient, locked } = useData()
+  const [activeTab, setActiveTab] = useState<StockTab>("stock")
 
   // Arriving from a flagged venue-scan ingredient's "Purchase" button —
   // prefill the add form with that name so the user just fills in the rest.
@@ -230,6 +234,27 @@ export default function StockPage() {
     <div className="relative space-y-8">
       <FallingBottles bottleImg={aperolBottle} />
       <RevealOnScroll>
+        {/* Tab switcher */}
+        <div className="mb-6 flex gap-1 border-b border-[var(--cream-dim)]/15">
+          {(["stock", "usage"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? "border-b-2 border-[var(--gold)] text-[var(--gold)]"
+                  : "text-[var(--cream-dim)] hover:text-[var(--cream)]"
+              }`}
+              style={{ marginBottom: activeTab === tab ? -1 : 0 }}
+            >
+              {tab === "stock" ? "Stock" : "Usage Tracker"}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "usage" && <UsageTracker />}
+        {activeTab === "stock" && (<>
         <h1 className="mb-1 text-lg font-medium">Your Stock</h1>
         <p className="mb-4 text-sm text-[var(--cream-dim)]">
           Add every ingredient you carry. Toggle in/out of stock as it runs out. Cost per serving
@@ -351,6 +376,7 @@ export default function StockPage() {
             {visibleIngredients.map(renderIngredientRow)}
           </div>
         )}
+      </>)}
       </RevealOnScroll>
     </div>
   )
