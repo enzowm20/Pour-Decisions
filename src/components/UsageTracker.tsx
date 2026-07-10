@@ -49,12 +49,13 @@ function LogModal({
   onClose,
 }: {
   ingredient: Ingredient
-  onSave: (amount: number, unit: UsageEntry["unit"], note: string) => void
+  onSave: (amount: number, unit: string, date: string, note: string) => void
   onClose: () => void
 }) {
   const [amount, setAmount] = useState("")
   const [unit, setUnit] = useState("bottles")
   const [customUnit, setCustomUnit] = useState("")
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState("")
 
   const PRESET_UNITS = ["bottles", "ml", "units", "other…"]
@@ -65,7 +66,7 @@ function LogModal({
     e.preventDefault()
     const n = parseFloat(amount)
     if (!n || n <= 0 || !resolvedUnit) return
-    onSave(n, resolvedUnit, note.trim())
+    onSave(n, resolvedUnit, date, note.trim())
   }
 
   return (
@@ -105,6 +106,13 @@ function LogModal({
               className="h-9 w-full rounded-md border border-[var(--gold)]/50 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
             />
           )}
+          <input
+            type="date"
+            value={date}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-9 w-full rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-3 text-sm text-[var(--cream)]"
+          />
           <input
             type="text"
             placeholder="Note (optional)"
@@ -191,14 +199,14 @@ export default function UsageTracker() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  function handleSave(ingredient: Ingredient, amount: number, unit: UsageEntry["unit"], note: string) {
+  function handleSave(ingredient: Ingredient, amount: number, unit: string, date: string, note: string) {
     const entry: UsageEntry = {
       id: newId(),
       ingredientId: ingredient.id,
       amount,
       unit,
       note: note || undefined,
-      date: new Date().toISOString().slice(0, 10),
+      date,
     }
     const updated = [entry, ...entries]
     setEntries(updated)
@@ -219,7 +227,7 @@ export default function UsageTracker() {
       {loggingFor && (
         <LogModal
           ingredient={loggingFor}
-          onSave={(amount, unit, note) => handleSave(loggingFor, amount, unit, note)}
+          onSave={(amount, unit, date, note) => handleSave(loggingFor, amount, unit, date, note)}
           onClose={() => setLoggingFor(null)}
         />
       )}
