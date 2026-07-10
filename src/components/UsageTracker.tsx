@@ -9,7 +9,7 @@ export interface UsageEntry {
   id: string
   ingredientId: string
   amount: number
-  unit: "bottles" | "ml" | "units"
+  unit: string // "bottles" | "ml" | "units" | any custom label
   date: string // ISO date YYYY-MM-DD
   note?: string
 }
@@ -53,14 +53,19 @@ function LogModal({
   onClose: () => void
 }) {
   const [amount, setAmount] = useState("")
-  const [unit, setUnit] = useState<UsageEntry["unit"]>("bottles")
+  const [unit, setUnit] = useState("bottles")
+  const [customUnit, setCustomUnit] = useState("")
   const [note, setNote] = useState("")
+
+  const PRESET_UNITS = ["bottles", "ml", "units", "other…"]
+  const isCustom = unit === "other…"
+  const resolvedUnit = isCustom ? customUnit.trim() : unit
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const n = parseFloat(amount)
-    if (!n || n <= 0) return
-    onSave(n, unit, note.trim())
+    if (!n || n <= 0 || !resolvedUnit) return
+    onSave(n, resolvedUnit, note.trim())
   }
 
   return (
@@ -84,14 +89,22 @@ function LogModal({
             />
             <select
               value={unit}
-              onChange={(e) => setUnit(e.target.value as UsageEntry["unit"])}
+              onChange={(e) => setUnit(e.target.value)}
               className="h-9 rounded-md border border-[var(--cream-dim)]/25 bg-[var(--bg)] px-2 text-sm text-[var(--cream)]"
             >
-              <option value="bottles">bottles</option>
-              <option value="ml">ml</option>
-              <option value="units">units</option>
+              {PRESET_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
+          {isCustom && (
+            <input
+              type="text"
+              autoFocus
+              placeholder="e.g. punnets, boxes, trays…"
+              value={customUnit}
+              onChange={(e) => setCustomUnit(e.target.value)}
+              className="h-9 w-full rounded-md border border-[var(--gold)]/50 bg-[var(--bg)] px-3 text-sm text-[var(--cream)] placeholder:text-[var(--cream-dim)]/60"
+            />
+          )}
           <input
             type="text"
             placeholder="Note (optional)"
@@ -136,21 +149,20 @@ export default function UsageTracker() {
   )
 
   const totalsByIngredient = useMemo(() => {
-    const map = new Map<string, { bottles: number; ml: number; units: number }>()
+    const map = new Map<string, Record<string, number>>()
     for (const e of periodEntries) {
-      const cur = map.get(e.ingredientId) ?? { bottles: 0, ml: 0, units: 0 }
-      cur[e.unit] += e.amount
+      const cur = map.get(e.ingredientId) ?? {}
+      cur[e.unit] = (cur[e.unit] ?? 0) + e.amount
       map.set(e.ingredientId, cur)
     }
     return map
   }, [periodEntries])
 
-  function formatTotal(totals: { bottles: number; ml: number; units: number }) {
-    const parts: string[] = []
-    if (totals.bottles > 0) parts.push(`${totals.bottles} ${totals.bottles === 1 ? "bottle" : "bottles"}`)
-    if (totals.ml > 0) parts.push(`${totals.ml} ml`)
-    if (totals.units > 0) parts.push(`${totals.units} ${totals.units === 1 ? "unit" : "units"}`)
-    return parts.join(" + ") || "—"
+  function formatTotal(totals: Record<string, number>) {
+    return Object.entries(totals)
+      .filter(([, v]) => v > 0)
+      .map(([unit, v]) => `${v} ${unit}`)
+      .join(" + ") || "—"
   }
 
   // Sort ingredients: those with usage first, then alphabetically
@@ -171,7 +183,7 @@ export default function UsageTracker() {
   const maxUsage = useMemo(() => {
     let max = 0
     for (const t of totalsByIngredient.values()) {
-      const equiv = t.bottles + t.ml / 700 + t.units
+      const equiv = (t["bottles"] ?? 0) + (t["ml"] ?? 0) / 700 + (t["units"] ?? 0) + Object.entries(t).filter(([k]) => !["bottles","ml","units"].includes(k)).reduce((s,[,v]) => s + v, 0)
       if (equiv > max) max = equiv
     }
     return max || 1
