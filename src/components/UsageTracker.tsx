@@ -297,11 +297,17 @@ export default function UsageTracker() {
 
                   {/* Usage bar */}
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--cream-dim)]/10">
+                    <div className="relative h-1.5 flex-1 rounded-full bg-[var(--cream-dim)]/10">
                       <div
                         className="h-full rounded-full bg-[var(--gold)] transition-all duration-500"
                         style={{ width: `${barWidth}%` }}
                       />
+                      {barWidth > 0 && (
+                        <span
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-2.5 w-0.5 rounded-full bg-[var(--gold)] opacity-80"
+                          style={{ left: `${barWidth}%`, animation: "usageTick 1.8s ease-in-out infinite" }}
+                        />
+                      )}
                     </div>
                     <span className="w-24 shrink-0 text-right text-xs text-[var(--cream-dim)]">
                       {totals ? formatTotal(totals) : "no usage logged"}
