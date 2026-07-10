@@ -259,7 +259,9 @@ export default function UsageTracker() {
         )}
         {filteredIngredients.map((ing) => {
           const totals = totalsByIngredient.get(ing.id)
-          const equiv = totals ? Object.values(totals).reduce((s, v) => s + v, 0) : 0
+          const equiv = totals
+            ? (totals["bottles"] ?? 0) + (totals["ml"] ?? 0) / 700 + (totals["units"] ?? 0) + Object.entries(totals).filter(([k]) => !["bottles","ml","units"].includes(k)).reduce((s,[,v]) => s + v, 0)
+            : 0
           const barWidth = maxUsage > 0 ? Math.round((equiv / maxUsage) * 100) : 0
           const ingEntries = entries.filter((e) => e.ingredientId === ing.id)
           const isExpanded = expandedId === ing.id
